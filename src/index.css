@@ -1,0 +1,69 @@
+:root {
+  --bg: #0b0f17;
+  --text: #cbd5e1;
+  --text-dim: #64748b;
+  --cyan: #22d3ee;
+
+  color-scheme: dark;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--bg);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
+.app {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.game-canvas {
+  position: absolute;
+  inset: 0;
+}
+
+.game-canvas canvas {
+  display: block;
+}
+
+/* The overlay covers the canvas but lets clicks through; only panels capture input. */
+.ui-overlay {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.ui-overlay > * {
+  position: absolute;
+}
+
+.title {
+  top: 16px;
+  left: 20px;
+}
+
+.title h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+  letter-spacing: 0.24em;
+  text-transform: uppercase;
+  color: var(--cyan);
+}
+
+.title span {
+  color: var(--text-dim);
+}
