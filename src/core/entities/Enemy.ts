@@ -29,6 +29,8 @@ export interface Enemy extends Entity {
   attackRange: number;
   /** Hexes this enemy may move in one turn. */
   moveRange: number;
+  /** One line telling the player how this enemy behaves. */
+  hint: string;
 }
 
 interface EnemyDefinition {
@@ -40,6 +42,7 @@ interface EnemyDefinition {
   behavior: string;
   moveRange: number;
   attack: { type: string; damage: number; range: number };
+  hint: string;
 }
 
 const DEFINITIONS: Record<string, EnemyDefinition> = enemiesJson;
@@ -69,6 +72,7 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
     attackDamage: definition.attack.damage,
     attackRange: definition.attack.range,
     moveRange: definition.moveRange,
+    hint: definition.hint,
   };
 }
 

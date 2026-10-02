@@ -1,6 +1,7 @@
 import { GameCanvas } from './renderer/GameCanvas';
 import { ActionMenu } from './ui/ActionMenu';
-import { DebugPanel } from './ui/DebugPanel';
+import { CombatLog } from './ui/CombatLog';
+import { Controls } from './ui/Controls';
 import { EnemyInfo } from './ui/EnemyInfo';
 import { GameOverScreen } from './ui/GameOverScreen';
 import { HUD } from './ui/HUD';
@@ -19,7 +20,8 @@ export function App() {
         <TurnIndicator />
         <HUD />
         <EnemyInfo />
-        <DebugPanel />
+        <Controls />
+        <CombatLog />
         <SpellBar />
         <ActionMenu />
         <GameOverScreen />

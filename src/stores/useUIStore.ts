@@ -181,7 +181,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 
 // Whatever the pointer is over stays put while the game changes around it, so
 // everything derived from it is recomputed whenever combat state moves on.
-useCombatStore.subscribe((combat) => {
+useCombatStore.subscribe((combat, previous) => {
+  // A new grid means a new fight: nothing selected or in progress carries over.
+  if (combat.grid !== previous.grid) {
+    useUIStore.setState({ ...NORMAL_MODE, selectedEntityId: null, path: [] });
+    return;
+  }
+
   const { hoveredHex, path, targetingSlot, hackMode } = useUIStore.getState();
 
   if (targetingSlot !== null) {

@@ -99,6 +99,12 @@ export class EntityRenderer {
     }
   }
 
+  /** Drops every view, so the next sync places entities afresh instead of sliding them over. */
+  reset(): void {
+    for (const view of this.views.values()) view.root.destroy({ children: true });
+    this.views.clear();
+  }
+
   /** Flashes an enemy white, for the moment its firewall breaks. */
   flash(entityId: string): void {
     const status = this.views.get(entityId)?.status;

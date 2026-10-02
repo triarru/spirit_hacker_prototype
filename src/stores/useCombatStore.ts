@@ -7,7 +7,7 @@ import {
   type HandCard,
   type SpellPreview,
 } from '../core/combat/CombatManager';
-import type { HackKind } from '../core/combat/EnvironmentHack';
+import { TRAP_ID, TURRET_ID, type HackKind } from '../core/combat/EnvironmentHack';
 import {
   ReactiveDefense,
   type DefensePrompt,
@@ -21,15 +21,52 @@ import type { HexCoord } from '../core/hex/HexCoord';
 import type { HexGrid } from '../core/hex/HexGrid';
 import type { Program } from '../core/programs/Program';
 import { createStarterDeck } from '../core/programs/SpellDeck';
+import { describeEvents, type LogLine } from './combatLog';
 import { runReactivePrompt } from './reactiveLoop';
 
 const ROOM_ID = 'prototype_room';
+/** The log keeps this many lines; older ones are dropped. */
+const LOG_LIMIT = 200;
+
+const newCombat = (): CombatManager =>
+  new CombatManager(loadRoom(ROOM_ID), Math.random, createStarterDeck());
+
+/** Display names by entity id, taken at the start so they outlive enemies that die. */
+const namesOf = (fight: CombatManager): Map<string, string> =>
+  new Map([
+    [TURRET_ID, 'Turret'],
+    [TRAP_ID, 'Trap'],
+    ...[fight.player, ...fight.enemies].map((entity): [string, string] => [entity.id, entity.name]),
+  ]);
 
 /**
  * The live game. Core logic mutates it in place; nothing outside this module
  * reads it directly — everyone else sees the snapshots published below.
+ * Replaced wholesale on restart.
  */
-const combat = new CombatManager(loadRoom(ROOM_ID), Math.random, createStarterDeck());
+let combat = newCombat();
+let names = namesOf(combat);
+
+/** A line of the combat log. `id` is stable, for use as a list key. */
+export interface LogEntry extends LogLine {
+  id: number;
+}
+
+let nextLogId = 0;
+const toEntries = (lines: LogLine[]): LogEntry[] =>
+  lines.map((line) => ({ ...line, id: nextLogId++ }));
+
+/** Log lines for a batch of events from the live game. */
+const logFor = (events: CombatEvent[]): LogEntry[] =>
+  toEntries(
+    describeEvents(events, {
+      playerId: combat.player.id,
+      nameOf: (id) => names.get(id) ?? id,
+      turn: combat.turn,
+    }),
+  );
+
+const openingLog = (): LogEntry[] => toEntries([{ tone: 'system', text: `— Turn ${combat.turn} —` }]);
 
 interface CombatSnapshot {
   grid: HexGrid;
@@ -63,6 +100,8 @@ export interface CombatState extends CombatSnapshot {
   reactive: ReactiveDefense | null;
   /** What the most recent change consisted of. Replaced, never appended to. */
   lastEvents: CombatEvent[];
+  /** Everything that has happened this fight, oldest first. */
+  log: LogEntry[];
   /** Walks the player to `hex` one step at a time. Does nothing if it is out of reach. */
   movePlayerTo: (hex: HexCoord) => Promise<void>;
   /** Basic attack. Does nothing if the enemy is out of range or the player cannot pay. */
@@ -75,6 +114,8 @@ export interface CombatState extends CombatSnapshot {
   hack: (hex: HexCoord, kind: HackKind) => void;
   /** Ends the player turn and plays out the enemy turn. */
   endTurn: () => Promise<void>;
+  /** Starts the fight over from the beginning. Only once it has ended. */
+  restart: () => void;
 }
 
 /** Copies of the live entities, so subscribers see a new reference whenever something changed. */
@@ -102,7 +143,11 @@ export const useCombatStore = create<CombatState>((set, get) => {
   /** Publishes the state after a change. Returns false when nothing happened. */
   const publish = (events: CombatEvent[]): boolean => {
     if (events.length === 0) return false;
-    set({ ...snapshot(), lastEvents: events });
+    set({
+      ...snapshot(),
+      lastEvents: events,
+      log: [...get().log, ...logFor(events)].slice(-LOG_LIMIT),
+    });
     return true;
   };
 
@@ -120,6 +165,7 @@ export const useCombatStore = create<CombatState>((set, get) => {
     busy: false,
     reactive: null,
     lastEvents: [],
+    log: openingLog(),
 
     movePlayerTo: async (hex) => {
       if (get().busy) return;
@@ -190,6 +236,16 @@ export const useCombatStore = create<CombatState>((set, get) => {
       await sleep(timing.enemyActionDelaySeconds);
       publish(combat.endEnemyPhase());
       set({ busy: false });
+    },
+
+    restart: () => {
+      // Mid-fight an enemy turn may still be playing out against the current game.
+      const { busy, phase } = get();
+      if (busy || (phase !== 'VICTORY' && phase !== 'DEFEAT')) return;
+
+      combat = newCombat();
+      names = namesOf(combat);
+      set({ ...snapshot(), reactive: null, lastEvents: [], log: openingLog() });
     },
   };
 });

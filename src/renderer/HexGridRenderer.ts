@@ -1,4 +1,4 @@
-import { Container, Graphics } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import { HEX_SIZE, hexCorners, hexToPixel, type HexCoord, type Point } from '../core/hex/HexCoord';
 import type { HexCell, HexGrid } from '../core/hex/HexGrid';
 
@@ -78,18 +78,35 @@ export class HexGridRenderer {
   private readonly rangeLayer = new Graphics();
   private readonly pathLayer = new Graphics();
   private readonly cursorLayer = new Graphics();
+  /** The AP cost shown at the end of the previewed path. */
+  private readonly pathLabel: Text;
 
   private turretDots: Array<{ dot: Graphics; center: Point }> = [];
   private trapGlows: Graphics[] = [];
   private clock = 0;
 
   constructor() {
+    this.pathLabel = new Text({
+      text: '',
+      style: {
+        fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
+        fontSize: 13,
+        fontWeight: '700',
+        fill: COLOR.path,
+        stroke: { color: 0x0b0f17, width: 4 },
+      },
+      resolution: 2,
+    });
+    this.pathLabel.anchor.set(0.5, 1);
+    this.pathLabel.visible = false;
+
     this.container.addChild(
       this.terrainLayer,
       this.hackLayer,
       this.rangeLayer,
       this.pathLayer,
       this.cursorLayer,
+      this.pathLabel,
     );
   }
 
@@ -187,10 +204,16 @@ export class HexGridRenderer {
     }
   }
 
-  drawPath(path: HexCoord[]): void {
+  /** `apCost` is what walking the path would cost; it is shown at the destination. */
+  drawPath(path: HexCoord[], apCost: number): void {
     const g = this.pathLayer.clear();
     const [first, ...rest] = path.map((hex) => hexToPixel(hex));
-    if (!first || rest.length === 0) return;
+    const last = rest.at(-1);
+    this.pathLabel.visible = last !== undefined;
+    if (!first || !last) return;
+
+    this.pathLabel.text = `${apCost} AP`;
+    this.pathLabel.position.set(last.x, last.y - 12);
 
     g.moveTo(first.x, first.y);
     for (const point of rest) g.lineTo(point.x, point.y);

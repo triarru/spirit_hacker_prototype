@@ -7,7 +7,12 @@
     "weakness": "SHOCK",
     "behavior": "patrol",
     "moveRange": 1,
-    "attack": { "type": "melee", "damage": 10, "range": 1 }
+    "attack": {
+      "type": "melee",
+      "damage": 10,
+      "range": 1
+    },
+    "hint": "Hunts you down one hex at a time, and strikes as soon as it is next to you."
   },
   "guardian": {
     "name": "Guardian",
@@ -17,7 +22,12 @@
     "weakness": "CORRUPT",
     "behavior": "guard",
     "moveRange": 0,
-    "attack": { "type": "melee", "damage": 15, "range": 1 }
+    "attack": {
+      "type": "melee",
+      "damage": 15,
+      "range": 1
+    },
+    "hint": "Never leaves its post. Hits hard if you stand next to it."
   },
   "ghost_process": {
     "name": "Ghost Process",
@@ -27,6 +37,11 @@
     "weakness": "PURE",
     "behavior": "random",
     "moveRange": 1,
-    "attack": { "type": "ranged", "damage": 8, "range": 2 }
+    "attack": {
+      "type": "ranged",
+      "damage": 8,
+      "range": 2
+    },
+    "hint": "Drifts at random, and fires whenever you are within 2 hexes."
   }
 }

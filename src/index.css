@@ -119,9 +119,78 @@ body,
   cursor: pointer;
 }
 
-.debug-panel {
+.controls {
   left: 20px;
   bottom: 20px;
+}
+
+.controls dl {
+  /* One row per control; each row lays out its own key and action. */
+  grid-template-columns: 1fr;
+  gap: 3px;
+  font-size: 11px;
+}
+
+.controls dl > div {
+  display: grid;
+  grid-template-columns: 92px 1fr;
+  gap: 8px;
+}
+
+.controls dt {
+  color: var(--cyan);
+}
+
+.controls dd {
+  white-space: normal;
+  color: var(--text-dim);
+}
+
+.combat-log {
+  right: 20px;
+  bottom: 20px;
+  width: 300px;
+}
+
+.combat-log ol {
+  height: 168px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.55;
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.log-neutral {
+  color: var(--text-dim);
+}
+
+.log-player {
+  color: var(--text);
+}
+
+.log-good {
+  color: #4ade80;
+}
+
+.log-bad {
+  color: var(--hp);
+}
+
+.log-system {
+  margin-top: 3px;
+  color: var(--cyan);
+  letter-spacing: 0.08em;
+}
+
+.enemy-hint {
+  margin: -4px 0 8px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-dim);
 }
 
 .enemy-info {
@@ -360,6 +429,30 @@ body,
   color: var(--text-dim);
 }
 
+.try-again {
+  justify-self: center;
+  margin-top: 12px;
+  padding: 7px 22px;
+  border: 1px solid currentColor;
+  border-radius: 4px;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.try-again:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.try-again:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
 .game-over-victory {
   color: var(--cyan);
 }
@@ -424,7 +517,7 @@ body,
 }
 
 .bar-hp {
-  background: var(--hp);
+  background: linear-gradient(90deg, #b91c1c, var(--hp));
 }
 
 .bar-ram {

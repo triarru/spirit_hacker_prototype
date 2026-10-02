@@ -1,8 +1,11 @@
 import { useEffect, useRef } from 'react';
 import { Application, Container, type FederatedPointerEvent, type Ticker } from 'pixi.js';
-import { pixelToHex, type HexCoord } from '../core/hex/HexCoord';
+import { pathCost } from '../core/combat/Movement';
+import { hexToPixel, pixelToHex, type HexCoord } from '../core/hex/HexCoord';
 import { useCombatStore } from '../stores/useCombatStore';
 import { useUIStore } from '../stores/useUIStore';
+import { Camera } from './Camera';
+import type { Rect } from './cameraMath';
 import { EffectRenderer } from './EffectRenderer';
 import { EntityRenderer } from './EntityRenderer';
 import { HexGridRenderer } from './HexGridRenderer';
@@ -17,7 +20,8 @@ const PADDING = 32;
  * a row of cards at their tallest (one with a modifier), and the margins around them.
  */
 const SPELL_BAR_RESERVE = 186;
-const MAX_ZOOM = 1.5;
+/** How strongly one notch of the mouse wheel zooms. */
+const WHEEL_ZOOM_RATE = 0.0015;
 
 /**
  * Builds the scene, wires input → store and store → renderers.
@@ -39,25 +43,29 @@ function mountGame(app: Application): () => void {
   );
   app.stage.addChild(world);
 
-  const layout = (): void => {
-    const bounds = gridRenderer.getBounds(useCombatStore.getState().grid);
-    const { width, height } = app.screen;
-    const availableHeight = height - PADDING - SPELL_BAR_RESERVE;
-    const scale = Math.min(
-      (width - PADDING * 2) / bounds.width,
-      availableHeight / bounds.height,
-      MAX_ZOOM,
-    );
-    world.scale.set(scale);
-    world.position.set(
-      (width - bounds.width * scale) / 2 - bounds.x * scale,
-      PADDING + (availableHeight - bounds.height * scale) / 2 - bounds.y * scale,
-    );
+  const camera = new Camera(world);
+  let gridBounds = gridRenderer.getBounds(useCombatStore.getState().grid);
+
+  /** The part of the canvas the grid may use: inside the padding, above the spell bar. */
+  const viewRect = (): Rect => ({
+    x: PADDING,
+    y: PADDING,
+    width: app.screen.width - PADDING * 2,
+    height: app.screen.height - PADDING - SPELL_BAR_RESERVE,
+  });
+
+  const updateCamera = (deltaSeconds: number): void => {
+    const focus = hexToPixel(useCombatStore.getState().player.position);
+    camera.update(viewRect(), gridBounds, focus, deltaSeconds);
   };
 
   const drawTerrain = (): void => {
     gridRenderer.drawTerrain(useCombatStore.getState().grid);
-    layout();
+  };
+
+  const drawPath = (): void => {
+    const { path } = useUIStore.getState();
+    gridRenderer.drawPath(path, pathCost(useCombatStore.getState().grid, path));
   };
 
   const drawRanges = (): void => {
@@ -95,14 +103,21 @@ function mountGame(app: Application): () => void {
   syncEntities();
   drawRanges();
   drawCursor();
-  gridRenderer.drawPath(useUIStore.getState().path);
+  drawPath();
+  updateCamera(0);
 
   const drawPreview = (): void => {
     previewRenderer.draw(useUIStore.getState().spellPreview, useCombatStore.getState().player.position);
   };
 
   const unsubscribeCombat = useCombatStore.subscribe((state, previous) => {
-    if (state.grid !== previous.grid || state.terrainVersion !== previous.terrainVersion) {
+    if (state.grid !== previous.grid) {
+      // A new fight: nothing on screen should glide over from the old one.
+      gridBounds = gridRenderer.getBounds(state.grid);
+      entityRenderer.reset();
+      camera.snap();
+      drawTerrain();
+    } else if (state.terrainVersion !== previous.terrainVersion) {
       drawTerrain();
     }
     syncEntities();
@@ -125,7 +140,7 @@ function mountGame(app: Application): () => void {
       drawRanges();
     }
     if (state.spellPreview !== previous.spellPreview) drawPreview();
-    if (state.path !== previous.path) gridRenderer.drawPath(state.path);
+    if (state.path !== previous.path) drawPath();
     if (
       state.hoveredHex !== previous.hoveredHex ||
       state.selectedEntityId !== previous.selectedEntityId
@@ -165,15 +180,21 @@ function mountGame(app: Application): () => void {
     // The prompt's clock runs outside the store, so it is read fresh every frame.
     const { reactive, player } = useCombatStore.getState();
     promptRenderer.draw(reactive, player.position);
+    updateCamera(deltaSeconds);
   };
   app.ticker.add(tick);
-  app.renderer.on('resize', layout);
+
+  const onWheel = (event: WheelEvent): void => {
+    event.preventDefault();
+    camera.zoomBy(Math.exp(-event.deltaY * WHEEL_ZOOM_RATE));
+  };
+  app.canvas.addEventListener('wheel', onWheel, { passive: false });
 
   return () => {
     unsubscribeCombat();
     unsubscribeUI();
     app.ticker.remove(tick);
-    app.renderer.off('resize', layout);
+    app.canvas.removeEventListener('wheel', onWheel);
     app.canvas.removeEventListener('contextmenu', suppressContextMenu);
   };
 }
