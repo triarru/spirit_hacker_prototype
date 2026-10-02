@@ -140,7 +140,7 @@
       "targeting": "ENEMY",
       "range": 2,
       "aoe": 0,
-      "damage": 14,
+      "damage": 10,
       "effects": []
     },
     "modifier": { "description": "Host spell hits as SHOCK instead of its own tag.", "modifyFn": "takeTag", "value": 0 },
@@ -160,7 +160,7 @@
       "targeting": "ENEMY",
       "range": 3,
       "aoe": 0,
-      "damage": 16,
+      "damage": 10,
       "effects": []
     },
     "modifier": { "description": "Host spell is paid for in Qi instead of RAM.", "modifyFn": "payWithQi", "value": 0 },
@@ -180,7 +180,7 @@
       "targeting": "ENEMY",
       "range": 3,
       "aoe": 0,
-      "damage": 8,
+      "damage": 6,
       "effects": [{ "type": "slow", "turns": 1 }]
     },
     "modifier": { "description": "Host spell slows each enemy it hits for 1 turn.", "modifyFn": "addSlow", "value": 1 },
