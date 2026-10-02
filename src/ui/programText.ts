@@ -11,6 +11,9 @@ export function describeSpec(spec: ActiveSpec): string {
   }
   if (spec.aoe > 0) parts.push(`splash ${spec.aoe}`);
   if (spec.firewallBonus > 0) parts.push(`FW +${spec.firewallBonus}`);
+  // Every hit strips firewall; say so when that is all the spell does.
+  const hitsEnemies = spec.targeting === 'ENEMY' || spec.targeting === 'LINE';
+  if (parts.length === 0 && hitsEnemies) parts.push('firewall only');
 
   if (spec.targeting === 'SELF') parts.push('self');
   else if (spec.range === null) parts.push(spec.targeting === 'ENEMY' ? 'any range' : 'any hex');

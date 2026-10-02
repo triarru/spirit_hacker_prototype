@@ -307,22 +307,28 @@ describe('program tags against the crawler (weak to SHOCK)', () => {
     expect(crawler.firewallCurrent).toBe(crawler.firewallMax - BREAK_RULES.weaknessHitFirewallDamage);
   });
 
-  it('nmap_scan is SHOCK: against the crawler it strips 2 bars, for little damage', () => {
+  it('nmap_scan is SHOCK: against the crawler it strips 2 bars, and does no damage', () => {
     const { crawler, events } = cast('nmap_scan');
     expect(getProgram('nmap_scan').tag).toBe('SHOCK');
     expect(crawler.firewallCurrent).toBe(crawler.firewallMax - BREAK_RULES.weaknessHitFirewallDamage);
     expect(crawler.breached).toBe(true);
-    expect(crawler.hp).toBe(500 - getProgram('nmap_scan').active.damage);
-    expect(getProgram('nmap_scan').active.damage).toBeLessThan(getProgram('brute_force').active.damage);
-    expect(events.map((event) => event.type)).toEqual(['spellCast', 'attacked', 'breached']);
+    expect(crawler.hp).toBe(500);
+    expect(events.map((event) => event.type)).toEqual(['spellCast', 'breached']);
   });
 
-  it('nmap_scan reaches an enemy at any distance', () => {
-    const combat = new CombatManager(
-      makeRoom({ player: at(3, 8), enemies: [['crawler', at(0, 0)]] }),
-      NEVER_DODGE,
-      new SpellDeck({ actives: [{ program: getProgram('nmap_scan'), modifier: null }], passives: [], handSize: 1 }),
-    );
-    expect(combat.getSpellTargets(0)).toEqual([at(0, 0)]);
+  it('nmap_scan reaches an enemy 4 hexes away, and no further', () => {
+    const scanFrom = (crawlerAt: ReturnType<typeof at>) =>
+      new CombatManager(
+        makeRoom({ player: at(3, 8), enemies: [['crawler', crawlerAt]] }),
+        NEVER_DODGE,
+        new SpellDeck({ actives: [{ program: getProgram('nmap_scan'), modifier: null }], passives: [], handSize: 1 }),
+      );
+
+    expect(scanFrom(at(3, 4)).getSpellTargets(0)).toEqual([at(3, 4)]);
+
+    const tooFar = scanFrom(at(3, 3));
+    expect(tooFar.getSpellTargets(0)).toEqual([]);
+    expect(tooFar.castSpell(0, at(3, 3))).toEqual([]);
+    expect(tooFar.player.ap).toBe(tooFar.player.maxAp);
   });
 });

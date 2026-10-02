@@ -114,9 +114,9 @@
       "ramCost": 5,
       "qiCost": 0,
       "targeting": "ENEMY",
-      "range": null,
+      "range": 4,
       "aoe": 0,
-      "damage": 5,
+      "damage": 0,
       "effects": [{ "type": "revealFog", "radius": 6 }]
     },
     "modifier": { "description": "Host spell has +1 range.", "modifyFn": "addRange", "value": 1 },

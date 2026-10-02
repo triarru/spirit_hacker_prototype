@@ -40,7 +40,7 @@ export interface Enemy extends Entity {
    * it advance, and how it moves once it does. Null for enemies without this.
    */
   aggro: AggroRule | null;
-  /** Damaging hits the player landed from beyond melee range since it last settled back into its guard. */
+  /** Hits the player landed from beyond melee range since it last settled back into its guard. */
   timesHitFromRange: number;
   /** It has been provoked and is advancing on the player. */
   aggressive: boolean;

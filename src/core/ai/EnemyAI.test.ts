@@ -378,11 +378,19 @@ describe('Guardian: guard and aggressive modes', () => {
     expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
   });
 
-  it('a hit that does no damage does not count', () => {
-    const { combat, guardian } = standoff(2, ['tran_yem']);
+  it('a hit that does no damage still counts: being targeted from range is what provokes it', () => {
+    const { combat, guardian } = standoff(2, ['tran_yem', 'nmap_scan']);
 
-    expect(combat.castSpell(0, guardian.position).map((event) => event.type)).toEqual(['spellCast', 'stunned']);
-    expect(guardian.timesHitFromRange).toBe(0);
+    expect(combat.castSpell(0, guardian.position).map((event) => event.type)).toEqual([
+      'spellCast',
+      'stanceShifted',
+      'stunned',
+    ]);
+    expect(guardian.hp).toBe(guardian.maxHp);
+    expect(guardian.timesHitFromRange).toBe(1);
+
+    expect(stances(combat.castSpell(1, guardian.position))).toEqual(['aggressive']);
+    expect(guardian.hp).toBe(guardian.maxHp);
   });
 
   it('turret shots do not count: a turret is not an entity', () => {

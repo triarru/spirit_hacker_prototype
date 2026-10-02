@@ -66,7 +66,7 @@ describe('casting', () => {
 
     const events = combat.castSpell(0, crawler.position);
 
-    expect(types(events)).toEqual(['spellCast', 'attacked', 'breached']);
+    expect(types(events)).toEqual(['spellCast', 'breached']);
     expect(crawler.breached).toBe(true);
   });
 

@@ -653,7 +653,8 @@ export class CombatManager {
   /**
    * One hit on an enemy: damage (amplified if it is breached), then firewall.
    * `tag` is the hit's spell tag, or null for an untagged hit like the basic
-   * attack. A hit with no damage (a pure stun, say) still strips firewall.
+   * attack. A hit with no damage (a scan, a pure stun) still strips firewall,
+   * and still counts as a hit to an enemy that minds being hit from range.
    */
   private hitEnemy(
     attackerId: string,
@@ -684,8 +685,8 @@ export class CombatManager {
         this.removeEnemy(enemy);
         return events;
       }
-      if (attackerId === this.player.id) events.push(...this.provoke(enemy));
     }
+    if (attackerId === this.player.id) events.push(...this.provoke(enemy));
 
     if (damageFirewall(enemy, firewallDamage)) {
       events.push({ type: 'breached', entityId: enemy.id, at });
@@ -694,10 +695,10 @@ export class CombatManager {
   }
 
   /**
-   * Counts a damaging hit the player landed from beyond melee range against an
-   * enemy that holds its ground, and sends it after the player once it has had
-   * enough. Only the player's own hits count: not a turret's, a trap's, or an
-   * infected ally's.
+   * Counts a hit the player landed from beyond melee range against an enemy
+   * that holds its ground, and sends it after the player once it has had
+   * enough. Being targeted is what counts, whether or not it hurt. Only the
+   * player's own hits count: not a turret's, a trap's, or an infected ally's.
    */
   private provoke(enemy: Enemy): CombatEvent[] {
     if (!enemy.aggro || enemy.aggressive) return [];
