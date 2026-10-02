@@ -348,7 +348,9 @@ body,
   margin-top: 4px;
 }
 
-.hack-button kbd {
+.hack-button kbd,
+.end-turn kbd,
+.try-again kbd {
   margin-left: 6px;
   padding: 0 5px;
   border: 1px solid currentColor;

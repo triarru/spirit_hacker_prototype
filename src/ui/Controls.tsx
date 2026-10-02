@@ -3,9 +3,11 @@ const CONTROLS: Array<[keys: string, action: string]> = [
   ['Right-click', 'select an enemy · cancel'],
   ['1 2 3', 'pick a program, then click a hex'],
   ['H', 'hack a terminal, floor or wall'],
+  ['E', 'end turn'],
   ['Space / Click', 'parry when the rings meet'],
   ['Arrows / WASD', 'dodge the way the arrow points'],
   ['Scroll', 'zoom'],
+  ['R', 'try again, once the fight is over'],
 ];
 
 /** The input cheat sheet, for someone playing for the first time. */

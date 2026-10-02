@@ -8,8 +8,11 @@ import { HUD } from './ui/HUD';
 import { LoadoutScreen } from './ui/LoadoutScreen';
 import { SpellBar } from './ui/SpellBar';
 import { TurnIndicator } from './ui/TurnIndicator';
+import { useHotkeys } from './ui/useHotkeys';
 
 export function App() {
+  useHotkeys();
+
   return (
     <div className="app">
       <GameCanvas />

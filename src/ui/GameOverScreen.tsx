@@ -17,7 +17,7 @@ export function GameOverScreen() {
         {won ? 'All hostile processes terminated' : 'Connection lost'} · turn {turn}
       </span>
       <button type="button" className="try-again" disabled={busy} onClick={restart}>
-        Try again
+        Try again <kbd>R</kbd>
       </button>
     </div>
   );

@@ -1,4 +1,3 @@
-import { useEffect } from 'react';
 import type { HandCard } from '../core/combat/CombatManager';
 import { HACK_RULES } from '../core/combat/EnvironmentHack';
 import { useCombatStore } from '../stores/useCombatStore';
@@ -61,27 +60,6 @@ export function SpellBar() {
   const targetingSlot = useUIStore((state) => state.targetingSlot);
   const hackMode = useUIStore((state) => state.hackMode);
   const selectCard = useUIStore((state) => state.selectCard);
-  const toggleHackMode = useUIStore((state) => state.toggleHackMode);
-  const cancelAction = useUIStore((state) => state.cancelAction);
-
-  useEffect(() => {
-    const onKeyDown = (event: KeyboardEvent): void => {
-      if (event.code === 'Escape') {
-        cancelAction();
-        return;
-      }
-      if (event.code === 'KeyH' && !event.repeat) {
-        toggleHackMode();
-        return;
-      }
-      // Digit1..Digit9 pick the card in that position of the hand.
-      const match = /^Digit([1-9])$/.exec(event.code);
-      const card = match ? useCombatStore.getState().hand[Number(match[1]) - 1] : undefined;
-      if (card && !event.repeat) selectCard(card.slot);
-    };
-    window.addEventListener('keydown', onKeyDown);
-    return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cancelAction, selectCard, toggleHackMode]);
 
   if (!inFight) return null;
 

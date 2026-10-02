@@ -88,7 +88,7 @@ export function HUD() {
           void endTurn();
         }}
       >
-        End turn
+        End turn <kbd>E</kbd>
       </button>
       {passives.length > 0 && (
         <ul className="passives">
