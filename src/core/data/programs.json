@@ -8,7 +8,7 @@
     "resourceType": "RAM",
     "active": {
       "apCost": 1,
-      "ramCost": 8,
+      "ramCost": 15,
       "qiCost": 0,
       "targeting": "ENEMY",
       "range": 1,
@@ -28,7 +28,7 @@
     "resourceType": "RAM",
     "active": {
       "apCost": 2,
-      "ramCost": 12,
+      "ramCost": 25,
       "qiCost": 0,
       "targeting": "LINE",
       "range": 3,
@@ -69,7 +69,7 @@
     "active": {
       "apCost": 1,
       "ramCost": 0,
-      "qiCost": 10,
+      "qiCost": 12,
       "targeting": "SELF",
       "range": 0,
       "aoe": 0,
@@ -92,7 +92,7 @@
     "active": {
       "apCost": 2,
       "ramCost": 0,
-      "qiCost": 12,
+      "qiCost": 15,
       "targeting": "ENEMY",
       "range": 2,
       "aoe": 0,

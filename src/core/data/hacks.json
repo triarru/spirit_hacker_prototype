@@ -1,7 +1,7 @@
 {
   "range": 3,
   "apCost": 1,
-  "turret": { "ramCost": 15, "damage": 8, "range": 3, "turns": 3 },
+  "turret": { "ramCost": 25, "damage": 8, "range": 3, "turns": 3 },
   "trap": { "ramCost": 10, "damage": 10, "slowTurns": 1 },
   "wall": { "ramCost": 12, "turns": 4 },
   "breakWall": { "ramCost": 10 }

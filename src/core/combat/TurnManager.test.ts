@@ -15,7 +15,7 @@ describe('regenerate', () => {
 
     expect(regenerate(player, noBonuses())).toEqual({ ram: PLAYER_DATA.ramRegen, qi: 0, hp: 0 });
     expect(player.ram).toBe(20 + PLAYER_DATA.ramRegen);
-    expect(PLAYER_DATA.ramRegen).toBe(15);
+    expect(PLAYER_DATA.ramRegen).toBeGreaterThan(0);
   });
 
   it('stacks the ping_flood passive on top of the base regen', () => {
@@ -61,7 +61,7 @@ describe('regen in combat', () => {
       new SpellDeck({ actives: [], passives: passiveIds.map(getProgram), handSize: 0 }),
     );
 
-  it('at the start of turn 2, RAM is what turn 1 ended with plus 15', () => {
+  it('at the start of turn 2, RAM is what turn 1 ended with plus the base regen', () => {
     const combat = fight();
     combat.player.ram = 10;
 
@@ -69,18 +69,18 @@ describe('regen in combat', () => {
     const events = runEnemyPhase(combat);
 
     expect(combat.turn).toBe(2);
-    expect(combat.player.ram).toBe(25);
-    expect(events).toContainEqual({ type: 'regenerated', ram: 15, qi: 0 });
+    expect(combat.player.ram).toBe(10 + PLAYER_DATA.ramRegen);
+    expect(events).toContainEqual({ type: 'regenerated', ram: PLAYER_DATA.ramRegen, qi: 0 });
   });
 
-  it('adds 20 with the ping_flood passive slotted', () => {
+  it('adds 5 more with the ping_flood passive slotted', () => {
     const combat = fight(['ping_flood']);
     combat.player.ram = 10;
 
     combat.endPlayerTurn();
     runEnemyPhase(combat);
 
-    expect(combat.player.ram).toBe(30);
+    expect(combat.player.ram).toBe(10 + PLAYER_DATA.ramRegen + 5);
   });
 
   it('leaves Qi alone, and reports nothing when RAM is already full', () => {
@@ -94,21 +94,25 @@ describe('regen in combat', () => {
     expect(events.some((event) => event.type === 'regenerated')).toBe(false);
   });
 
-  it('casting ping_flood from full leaves 88 RAM, and the next turn tops it back up to 100', () => {
+  it('a spell costs more RAM than one turn gives back', () => {
     const combat = new CombatManager(
       makeRoom({ player: at(3, 4), enemies: [['guardian', at(0, 0)]] }),
       () => 0.999,
       new SpellDeck({ actives: [{ program: getProgram('ping_flood'), modifier: null }], passives: [], handSize: 1 }),
     );
-    expect(combat.player.ram).toBe(100);
+    const { ramCost } = getProgram('ping_flood').active;
+    const { maxRam } = combat.player;
+    expect(combat.player.ram).toBe(maxRam);
 
     combat.castSpell(0, at(3, 5));
-    expect(combat.player.ram).toBe(88);
+    expect(combat.player.ram).toBe(maxRam - ramCost);
 
     combat.endPlayerTurn();
     const events = runEnemyPhase(combat);
-    expect(combat.player.ram).toBe(100);
-    expect(events).toContainEqual({ type: 'regenerated', ram: 12, qi: 0 });
+    // The regen does not cover the cast: casting it every turn runs the pool down.
+    expect(ramCost).toBeGreaterThan(PLAYER_DATA.ramRegen);
+    expect(combat.player.ram).toBe(maxRam - ramCost + PLAYER_DATA.ramRegen);
+    expect(events).toContainEqual({ type: 'regenerated', ram: PLAYER_DATA.ramRegen, qi: 0 });
   });
 
   it('does not regenerate during the turn itself, only when a new one starts', () => {

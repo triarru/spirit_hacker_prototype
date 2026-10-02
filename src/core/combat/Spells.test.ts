@@ -36,7 +36,7 @@ function setup({ player = at(3, 4), enemies, walls, deck }: Setup) {
 const types = (events: Array<{ type: string }>): string[] => events.map((event) => event.type);
 
 describe('casting', () => {
-  it('brute_force: 20 damage for 1 AP and 8 RAM, and the card leaves the hand', () => {
+  it('brute_force: 20 damage for 1 AP and its RAM cost, and the card leaves the hand', () => {
     const { combat, enemies } = setup({ enemies: [['guardian', at(3, 3)]], deck: deckOf([['brute_force']]) });
     const [guardian] = enemies;
     if (!guardian) throw new Error('guardian missing');
@@ -45,7 +45,7 @@ describe('casting', () => {
 
     expect(guardian.hp).toBe(guardian.maxHp - 20);
     expect(combat.player.ap).toBe(combat.player.maxAp - 1);
-    expect(combat.player.ram).toBe(combat.player.maxRam - 8);
+    expect(combat.player.ram).toBe(combat.player.maxRam - getProgram('brute_force').active.ramCost);
     expect(combat.getHand()).toEqual([]);
     expect(events[0]).toEqual({
       type: 'spellCast',
@@ -197,7 +197,7 @@ describe('ping_flood', () => {
     expect(crawler.hp).toBe(crawler.maxHp - 12);
     expect(guardian.hp).toBe(guardian.maxHp);
     expect(combat.player.ap).toBe(combat.player.maxAp - 2);
-    expect(combat.player.ram).toBe(combat.player.maxRam - 12);
+    expect(combat.player.ram).toBe(combat.player.maxRam - getProgram('ping_flood').active.ramCost);
   });
 
   it('can be fired down an empty line, which just wastes it', () => {
@@ -217,7 +217,7 @@ describe('tran_yem', () => {
     expect(types(cast)).toEqual(['spellCast', 'stunned']);
     expect(guardian.hp).toBe(guardian.maxHp);
     expect(guardian.firewallCurrent).toBe(guardian.firewallMax - 1);
-    expect(combat.player.qi).toBe(combat.player.maxQi - 12);
+    expect(combat.player.qi).toBe(combat.player.maxQi - getProgram('tran_yem').active.qiCost);
 
     combat.player.ap = 0;
     combat.endPlayerTurn();
@@ -309,7 +309,7 @@ describe('incense_burn', () => {
     const events = combat.castSpell(0, combat.player.position);
 
     expect(combat.player.hp).toBe(75);
-    expect(combat.player.qi).toBe(combat.player.maxQi - 10);
+    expect(combat.player.qi).toBe(combat.player.maxQi - getProgram('incense_burn').active.qiCost);
     expect(events).toContainEqual({
       type: 'healed',
       entityId: combat.player.id,
@@ -366,7 +366,7 @@ describe('modifiers in combat', () => {
   it('firewall_up under ping_flood: costs 4 RAM less', () => {
     const { combat } = setup({ enemies: [['guardian', at(0, 0)]], deck: deckOf([['ping_flood', 'firewall_up']]) });
     combat.castSpell(0, at(3, 3));
-    expect(combat.player.ram).toBe(combat.player.maxRam - 8);
+    expect(combat.player.ram).toBe(combat.player.maxRam - (getProgram('ping_flood').active.ramCost - 4));
   });
 
   it('incense_burn under brute_force: the cast also heals 5', () => {

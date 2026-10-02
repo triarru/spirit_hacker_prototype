@@ -6,7 +6,7 @@
   "ram": 100,
   "maxQi": 100,
   "qi": 100,
-  "ramRegen": 15,
+  "ramRegen": 5,
   "speed": 5,
   "maxAp": 3,
   "apCap": 5,

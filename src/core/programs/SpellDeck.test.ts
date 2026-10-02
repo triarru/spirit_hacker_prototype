@@ -51,7 +51,7 @@ describe('buildDeck: a loadout applies the effects of what is slotted', () => {
 
     // nmap_scan: +1 range. firewall_up: 4 RAM cheaper.
     expect(deck.specOf(0)).toMatchObject({ damage: 20, range: 2 });
-    expect(deck.specOf(1)).toMatchObject({ damage: 12, ramCost: 8 });
+    expect(deck.specOf(1)).toMatchObject({ damage: 12, ramCost: (PROGRAMS.ping_flood?.active.ramCost ?? 0) - 4 });
   });
 
   it('changes the same Active when a different modifier is slotted', () => {
