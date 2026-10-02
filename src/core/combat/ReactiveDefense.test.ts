@@ -161,7 +161,7 @@ describe('ReactiveDefense session', () => {
     expect(session.result).toBeNull();
 
     session.handleInput({ kind: 'parry' }, PERFECT);
-    expect(session.result).toEqual({ kind: 'parry', grade: 'perfect' });
+    expect(session.result).toMatchObject({ kind: 'parry', grade: 'perfect' });
   });
 
   it('ignores a press long before the mark: it is not an attempt, and the real one still counts', () => {
@@ -173,7 +173,7 @@ describe('ReactiveDefense session', () => {
     expect(session.result).toBeNull();
 
     session.handleInput({ kind: 'parry' }, PERFECT);
-    expect(session.result).toEqual({ kind: 'parry', grade: 'perfect' });
+    expect(session.result).toMatchObject({ kind: 'parry', grade: 'perfect' });
   });
 
   it('gives one attempt: a press near the mark but too early is a miss, and later presses do nothing', () => {
@@ -181,14 +181,14 @@ describe('ReactiveDefense session', () => {
     session.handleInput({ kind: 'parry' }, JUDGED_FROM + 0.01);
     session.handleInput({ kind: 'parry' }, PERFECT);
 
-    expect(session.result).toEqual({ kind: 'parry', grade: 'miss', missedBy: 'early' });
+    expect(session.result).toMatchObject({ kind: 'parry', grade: 'miss', missedBy: 'early' });
   });
 
   it('says a press past the good window was too late', () => {
     const session = new ReactiveDefense(PARRY_PROMPT);
     session.handleInput({ kind: 'parry' }, PERFECT + parry.goodToleranceSeconds + 0.01);
 
-    expect(session.result).toEqual({ kind: 'parry', grade: 'miss', missedBy: 'late' });
+    expect(session.result).toMatchObject({ kind: 'parry', grade: 'miss', missedBy: 'late' });
   });
 
   it('makes mashing lose: the first press that counts lands too early to be good', () => {
@@ -203,7 +203,20 @@ describe('ReactiveDefense session', () => {
     }
   });
 
-  it('times out as a miss, with no reason given', () => {
+  it('reports how far off the mark the press was: negative early, positive late', () => {
+    const at = (seconds: number) => {
+      const session = new ReactiveDefense(PARRY_PROMPT);
+      session.handleInput({ kind: 'parry' }, seconds);
+      return session.result?.offBySeconds;
+    };
+
+    expect(at(PERFECT - 0.02)).toBeCloseTo(-0.02);
+    expect(at(PERFECT + 0.03)).toBeCloseTo(0.03);
+    // A miss is measured too: that is how the player learns which way they were off.
+    expect(at(JUDGED_FROM + 0.01)).toBeCloseTo(0.01 - parry.judgeToleranceSeconds);
+  });
+
+  it('times out as a miss, with no reason and no offset', () => {
     const session = new ReactiveDefense(PARRY_PROMPT);
     session.advanceTo(parry.durationSeconds);
     expect(session.result).toEqual({ kind: 'parry', grade: 'miss' });
@@ -229,13 +242,13 @@ describe('ReactiveDefense session', () => {
 
     it('needs the right direction at the right moment to be perfect', () => {
       expect(dodgePrompt().answer).toBe('down');
-      expect(press('down', dodge.perfectAtSeconds)).toEqual({ kind: 'dodge', grade: 'perfect', direction: 'down' });
+      expect(press('down', dodge.perfectAtSeconds)).toMatchObject({ kind: 'dodge', grade: 'perfect', direction: 'down' });
     });
 
     it('is only good when the direction is right but the timing is a little off', () => {
       const off = (dodge.perfectToleranceSeconds + dodge.goodToleranceSeconds) / 2;
-      expect(press('down', dodge.perfectAtSeconds - off)).toEqual({ kind: 'dodge', grade: 'good', direction: 'down' });
-      expect(press('down', dodge.perfectAtSeconds + off)).toEqual({ kind: 'dodge', grade: 'good', direction: 'down' });
+      expect(press('down', dodge.perfectAtSeconds - off)).toMatchObject({ kind: 'dodge', grade: 'good', direction: 'down' });
+      expect(press('down', dodge.perfectAtSeconds + off)).toMatchObject({ kind: 'dodge', grade: 'good', direction: 'down' });
     });
 
     it('misses when the direction is right but the timing is well off', () => {
@@ -245,7 +258,7 @@ describe('ReactiveDefense session', () => {
     });
 
     it('misses on the wrong direction, however good the timing', () => {
-      expect(press('up', dodge.perfectAtSeconds)).toEqual({
+      expect(press('up', dodge.perfectAtSeconds)).toMatchObject({
         kind: 'dodge',
         grade: 'miss',
         direction: 'up',

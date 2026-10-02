@@ -1,6 +1,7 @@
 import type { CombatEvent } from '../core/combat/CombatManager';
 import { HACK_RULES, TRAP_ID, TURRET_ID, type HackKind } from '../core/combat/EnvironmentHack';
 import type { DefenseResult, MissReason } from '../core/combat/ReactiveDefense';
+import { formatOffset } from './defenseStats';
 
 /** How a line should be colored: who it is good or bad for. */
 export type LogTone = 'neutral' | 'player' | 'good' | 'bad' | 'system';
@@ -87,15 +88,25 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
         }
         break;
 
-      case 'defended':
+      case 'defended': {
+        // How far off the mark the press was, when it was timed.
+        const timing = event.offBySeconds === undefined ? '' : ` · ${formatOffset(event.offBySeconds)}`;
         if (event.kind === 'dodge') {
-          lines.push({ tone: 'good', text: event.grade === 'good' ? 'Dodge! Damage reduced' : 'Perfect Dodge!' });
-        } else if (event.grade === 'good') lines.push({ tone: 'good', text: 'Parry! Damage halved' });
-        else lines.push({ tone: 'good', text: `Perfect Parry! +${event.apBanked} AP` });
+          const text = event.grade === 'good' ? 'Dodge! Damage reduced' : 'Perfect Dodge!';
+          lines.push({ tone: 'good', text: text + timing });
+        } else if (event.grade === 'good') lines.push({ tone: 'good', text: `Parry! Damage halved${timing}` });
+        else lines.push({ tone: 'good', text: `Perfect Parry! +${event.apBanked} AP${timing}` });
         break;
-      case 'defenseMissed':
-        lines.push({ tone: 'bad', text: MISS_TEXT[event.kind][event.reason] });
+      }
+      case 'defenseMissed': {
+        const text = MISS_TEXT[event.kind][event.reason];
+        const timed = event.reason !== 'wrong_way' && event.offBySeconds !== undefined;
+        lines.push({
+          tone: 'bad',
+          text: timed ? `${text} by ${Math.abs(Math.round((event.offBySeconds ?? 0) * 1000))}ms` : text,
+        });
         break;
+      }
 
       case 'breached':
         lines.push({ tone: 'good', text: `${nameOf(event.entityId)} FIREWALL BREACHED!` });

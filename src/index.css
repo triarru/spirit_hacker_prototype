@@ -431,6 +431,27 @@ body,
   color: var(--text-dim);
 }
 
+.defense-summary {
+  display: grid;
+  grid-template-columns: auto auto;
+  gap: 3px 14px;
+  margin: 10px 0 0;
+  font-size: 12px;
+  text-align: left;
+  white-space: nowrap;
+}
+
+.defense-summary dt {
+  color: var(--text-dim);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.defense-summary dd {
+  margin: 0;
+  color: var(--text);
+}
+
 .try-again {
   justify-self: center;
   margin-top: 12px;

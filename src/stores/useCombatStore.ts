@@ -30,6 +30,7 @@ import {
   type LoadoutSlot,
 } from '../core/programs/SpellDeck';
 import { describeEvents, type LogLine } from './combatLog';
+import { emptyTally, tallyDefense, type DefenseTally } from './defenseStats';
 import { runReactivePrompt } from './reactiveLoop';
 
 const ROOM_ID = 'prototype_room';
@@ -107,6 +108,8 @@ export interface CombatState extends CombatSnapshot {
   reactive: ReactiveDefense | null;
   /** The enemy announcing an attack the player will get to react to, from just before its prompt until it lands. */
   windingUp: string | null;
+  /** How the player has answered enemy attacks this fight. */
+  defense: DefenseTally;
   /** What the most recent change consisted of. Replaced, never appended to. */
   lastEvents: CombatEvent[];
   /** Everything that has happened this fight, oldest first. */
@@ -162,6 +165,7 @@ export const useCombatStore = create<CombatState>((set, get) => {
       ...snapshot(),
       lastEvents: events,
       log: [...get().log, ...logFor(events)].slice(-LOG_LIMIT),
+      defense: tallyDefense(get().defense, events, combat.player.id),
     });
     return true;
   };
@@ -180,6 +184,7 @@ export const useCombatStore = create<CombatState>((set, get) => {
     busy: false,
     reactive: null,
     windingUp: null,
+    defense: emptyTally(),
     lastEvents: [],
     log: [],
     loadout: starterSelection(),
@@ -278,7 +283,7 @@ export const useCombatStore = create<CombatState>((set, get) => {
 
       combat = newCombat();
       names = namesOf(combat);
-      set({ ...snapshot(), reactive: null, windingUp: null, lastEvents: [], log: [] });
+      set({ ...snapshot(), reactive: null, windingUp: null, defense: emptyTally(), lastEvents: [], log: [] });
     },
   };
 });

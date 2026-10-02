@@ -55,6 +55,18 @@ describe('describeEvents', () => {
     expect(text([defended('dodge', 'good', 0)])).toEqual(['Dodge! Damage reduced']);
   });
 
+  it('adds how far off the mark a timed press was', () => {
+    const timed = (grade: 'perfect' | 'good', offBySeconds: number): CombatEvent => ({
+      type: 'defended', kind: 'parry', grade, attackerId: 'crawler_0', at: hex, apBanked: grade === 'perfect' ? 1 : 0, offBySeconds,
+    });
+    expect(text([timed('perfect', 0.012)])).toEqual(['Perfect Parry! +1 AP · 12ms late']);
+    expect(text([timed('good', -0.061)])).toEqual(['Parry! Damage halved · 61ms early']);
+    expect(text([{ type: 'defenseMissed', kind: 'dodge', reason: 'late', attackerId: 'crawler_0', at: hex, offBySeconds: 0.09 }]))
+      .toEqual(['Dodge too late by 90ms']);
+    expect(text([{ type: 'defenseMissed', kind: 'dodge', reason: 'wrong_way', attackerId: 'crawler_0', at: hex, offBySeconds: 0.01 }]))
+      .toEqual(['Dodged the wrong way']);
+  });
+
   it('says what went wrong with a parry or dodge that missed', () => {
     const missed = (kind: 'parry' | 'dodge', reason: 'early' | 'late' | 'wrong_way'): CombatEvent => ({
       type: 'defenseMissed', kind, reason, attackerId: 'crawler_0', at: hex,

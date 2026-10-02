@@ -59,6 +59,8 @@ export interface DefenseResult {
   direction?: Direction;
   /** What went wrong, for an attempt that missed. */
   missedBy?: MissReason;
+  /** How far from the mark the attempt landed: negative is early, positive is late. Absent when nothing was pressed. */
+  offBySeconds?: number;
 }
 
 /** What a defense result does to the attack it answered. */
@@ -239,19 +241,22 @@ export class ReactiveDefense {
 
     this.elapsedSeconds = Math.max(0, atSeconds);
     const timing = gradeTiming(this.prompt, atSeconds);
-    const mistimed: MissReason = atSeconds < this.prompt.perfectAtSeconds ? 'early' : 'late';
+    const offBySeconds = atSeconds - this.prompt.perfectAtSeconds;
+    const mistimed: MissReason = offBySeconds < 0 ? 'early' : 'late';
 
     if (this.prompt.kind === 'parry') {
       this.result =
-        timing === 'miss' ? { kind: 'parry', grade: 'miss', missedBy: mistimed } : { kind: 'parry', grade: timing };
+        timing === 'miss'
+          ? { kind: 'parry', grade: 'miss', missedBy: mistimed, offBySeconds }
+          : { kind: 'parry', grade: timing, offBySeconds };
     } else if (input.kind === 'dodge') {
       const { direction } = input;
       if (direction !== this.prompt.answer) {
-        this.result = { kind: 'dodge', grade: 'miss', direction, missedBy: 'wrong_way' };
+        this.result = { kind: 'dodge', grade: 'miss', direction, missedBy: 'wrong_way', offBySeconds };
       } else if (timing === 'miss') {
-        this.result = { kind: 'dodge', grade: 'miss', direction, missedBy: mistimed };
+        this.result = { kind: 'dodge', grade: 'miss', direction, missedBy: mistimed, offBySeconds };
       } else {
-        this.result = { kind: 'dodge', grade: timing, direction };
+        this.result = { kind: 'dodge', grade: timing, direction, offBySeconds };
       }
     }
   }

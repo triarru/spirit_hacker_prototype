@@ -64,6 +64,8 @@ export type CombatEvent =
       /** Where the player stood when the attack came in. */
       at: HexCoord;
       apBanked: number;
+      /** How far from the mark the input landed: negative is early, positive is late. */
+      offBySeconds?: number;
     }
   | {
       /** The player tried to parry or dodge an attack and got it wrong. */
@@ -72,6 +74,8 @@ export type CombatEvent =
       reason: MissReason;
       attackerId: string;
       at: HexCoord;
+      /** How far from the mark the input landed: negative is early, positive is late. */
+      offBySeconds?: number;
     }
   | { /** An enemy's firewall hit zero. */ type: 'breached'; entityId: string; at: HexCoord }
   | { /** A breached enemy got its firewall back. */ type: 'recovered'; entityId: string; at: HexCoord }
@@ -580,6 +584,8 @@ export class CombatManager {
     const effects = defenseEffects(defense);
     const events: CombatEvent[] = [];
     const at = this.player.position;
+    // Only an input that was actually timed has an offset to report.
+    const timing = defense?.offBySeconds === undefined ? {} : { offBySeconds: defense.offBySeconds };
 
     if (defense && defense.grade !== 'miss') {
       this.player.apBank += effects.apBank;
@@ -590,6 +596,7 @@ export class CombatManager {
         attackerId: enemy.id,
         at,
         apBanked: effects.apBank,
+        ...timing,
       });
       // A perfect parry reflects onto the attacker's firewall, and can be what breaks it.
       if (damageFirewall(enemy, effects.firewallDamage)) {
@@ -598,7 +605,14 @@ export class CombatManager {
     }
 
     if (defense?.grade === 'miss' && defense.missedBy) {
-      events.push({ type: 'defenseMissed', kind: defense.kind, reason: defense.missedBy, attackerId: enemy.id, at });
+      events.push({
+        type: 'defenseMissed',
+        kind: defense.kind,
+        reason: defense.missedBy,
+        attackerId: enemy.id,
+        at,
+        ...timing,
+      });
     }
 
     // Whatever damage gets past the defense is resolved like any other hit,
