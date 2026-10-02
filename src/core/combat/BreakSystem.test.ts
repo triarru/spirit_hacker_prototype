@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { Enemy } from '../entities/Enemy';
 import { PLAYER_DATA } from '../entities/Player';
 import type { SpellTag } from '../programs/Program';
-import { getProgram } from '../programs/ProgramRegistry';
+import { getProgram, PROGRAMS } from '../programs/ProgramRegistry';
 import { SpellDeck } from '../programs/SpellDeck';
 import {
   BREAK_RULES,
@@ -95,9 +95,13 @@ describe('breach in combat', () => {
 
   it('basic attacks strip the firewall one bar at a time until it breaches', () => {
     const { combat, crawler } = setup();
+    crawler.hp = crawler.maxHp = 500;
+    combat.player.ap = crawler.firewallMax;
 
-    expect(combat.playerAttack(crawler.id).map((event) => event.type)).toEqual(['attacked']);
-    expect(crawler.firewallCurrent).toBe(crawler.firewallMax - 1);
+    for (let stripped = 1; stripped < crawler.firewallMax; stripped++) {
+      expect(combat.playerAttack(crawler.id).map((event) => event.type)).toEqual(['attacked']);
+      expect(crawler.firewallCurrent).toBe(crawler.firewallMax - stripped);
+    }
 
     expect(combat.playerAttack(crawler.id).map((event) => event.type)).toEqual(['attacked', 'breached']);
     expect(crawler.breached).toBe(true);
@@ -107,6 +111,8 @@ describe('breach in combat', () => {
     const { combat, crawler } = setup();
     // Enough HP to survive all three hits, so the damage of each can be read off.
     crawler.hp = crawler.maxHp = 100;
+    // Two bars left, so the second hit is the one that breaches.
+    crawler.firewallCurrent = 2;
     combat.playerAttack(crawler.id);
     combat.playerAttack(crawler.id);
     expect(crawler.hp).toBe(crawler.maxHp - basicAttack.damage * 2);
@@ -119,6 +125,7 @@ describe('breach in combat', () => {
 
   it('skips the breached enemy turn, keeps it breached for the next player turn, then lets it recover and act', () => {
     const { combat, crawler, guardian } = setup();
+    crawler.firewallCurrent = 2;
     combat.playerAttack(crawler.id);
     combat.playerAttack(crawler.id);
     combat.player.ap = 0;
@@ -317,11 +324,14 @@ describe('program tags against the crawler (weak to SHOCK)', () => {
     expect(crawler.breached).toBe(false);
   });
 
-  it('brute_force cannot breach a crawler in one hit: it takes two', () => {
+  it('normal hits take three to breach a crawler', () => {
     const { combat, crawler } = cast('brute_force');
+    expect(crawler.firewallMax).toBe(3);
     expect(crawler.breached).toBe(false);
 
-    // The card is spent; the second hit is a basic attack.
+    // The card is spent; the hits that follow are basic attacks.
+    combat.playerAttack(crawler.id);
+    expect(crawler.breached).toBe(false);
     combat.playerAttack(crawler.id);
     expect(crawler.breached).toBe(true);
   });
@@ -335,9 +345,48 @@ describe('program tags against the crawler (weak to SHOCK)', () => {
     const { crawler, events } = cast('nmap_scan');
     expect(getProgram('nmap_scan').tag).toBe('SHOCK');
     expect(crawler.firewallCurrent).toBe(crawler.firewallMax - BREAK_RULES.weaknessHitFirewallDamage);
-    expect(crawler.breached).toBe(true);
+    expect(crawler.breached).toBe(false);
     expect(crawler.hp).toBe(500);
-    expect(events.map((event) => event.type)).toEqual(['spellCast', 'breached']);
+    expect(events.map((event) => event.type)).toEqual(['spellCast']);
+  });
+
+  it('a hit on its weakness saves one hit: nmap_scan, then any second hit, breaches', () => {
+    const { combat, crawler } = cast('nmap_scan');
+
+    expect(combat.playerAttack(crawler.id).map((event) => event.type)).toEqual(['attacked', 'breached']);
+    expect(crawler.breached).toBe(true);
+  });
+
+  it('no single cast breaches a crawler at full firewall, whatever is slotted with it', () => {
+    const ids = Object.keys(PROGRAMS);
+    const orNone = <T,>(options: T[]): Array<T | null> => [null, ...options];
+    let checked = 0;
+
+    for (const activeId of ids) {
+      for (const modifierId of orNone(ids.filter((id) => id !== activeId))) {
+        for (const passiveId of orNone(ids.filter((id) => id !== activeId && id !== modifierId))) {
+          const combat = new CombatManager(
+            makeRoom({ player: at(3, 4), enemies: [['crawler', at(3, 3)]] }),
+            NEVER_DODGE,
+            new SpellDeck({
+              actives: [{ program: getProgram(activeId), modifier: modifierId ? getProgram(modifierId) : null }],
+              passives: passiveId ? [getProgram(passiveId)] : [],
+              handSize: 1,
+            }),
+          );
+          const [crawler] = combat.enemies;
+          if (!crawler) throw new Error('crawler missing');
+          crawler.hp = crawler.maxHp = 500;
+
+          for (const hit of combat.previewSpell(0, crawler.position)?.hits ?? []) {
+            expect(hit.breaches, `${activeId} + ${modifierId} + ${passiveId}`).toBe(false);
+            checked += 1;
+          }
+        }
+      }
+    }
+    // Every program that can be aimed at an enemy was tried, in every pairing.
+    expect(checked).toBeGreaterThan(50);
   });
 
   it('nmap_scan with tran_yem under it strips no more than nmap_scan alone', () => {

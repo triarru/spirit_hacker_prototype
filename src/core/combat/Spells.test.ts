@@ -63,6 +63,7 @@ describe('casting', () => {
     const [crawler] = enemies;
     if (!crawler) throw new Error('crawler missing');
     expect(crawler.weakness).toBe(getProgram('nmap_scan').tag);
+    crawler.firewallCurrent = BREAK_RULES.weaknessHitFirewallDamage;
 
     const events = combat.castSpell(0, crawler.position);
 

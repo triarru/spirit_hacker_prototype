@@ -3,7 +3,7 @@
     "name": "Crawler",
     "maxHp": 30,
     "speed": 4,
-    "firewall": 2,
+    "firewall": 3,
     "weakness": "SHOCK",
     "behavior": "patrol",
     "moveRange": 2,
