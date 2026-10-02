@@ -191,6 +191,8 @@ describe('trap', () => {
     });
     const [crawler] = enemies;
     if (!crawler) throw new Error('crawler missing');
+    // These tests are about the trap, so the crawler takes the corridor one hex at a time.
+    crawler.moveRange = 1;
     return { combat, grid, crawler };
   }
 
@@ -222,10 +224,23 @@ describe('trap', () => {
     passTurn(combat);
     expect(crawler.position.equals(at(0, 2))).toBe(true);
 
-    // Slowed: a crawler moves 1 hex a turn, so this turn it goes nowhere.
+    // Slowed: at one hex a turn, that leaves it nothing to move with.
     passTurn(combat);
     expect(crawler.position.equals(at(0, 2))).toBe(true);
 
+    passTurn(combat);
+    expect(crawler.position.equals(at(0, 3))).toBe(true);
+  });
+
+  it('takes one hex off a faster enemy rather than stopping it', () => {
+    const { combat, crawler } = corridor();
+    crawler.moveRange = 2;
+    crawler.slowTurns = 1;
+
+    passTurn(combat);
+    expect(crawler.position.equals(at(0, 1))).toBe(true);
+
+    // The slow has worn off: back to two hexes a turn.
     passTurn(combat);
     expect(crawler.position.equals(at(0, 3))).toBe(true);
   });

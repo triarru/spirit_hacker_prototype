@@ -6,13 +6,13 @@
     "firewall": 2,
     "weakness": "SHOCK",
     "behavior": "patrol",
-    "moveRange": 1,
+    "moveRange": 2,
     "attack": {
       "type": "melee",
       "damage": 10,
       "range": 1
     },
-    "hint": "Hunts you down one hex at a time, and strikes as soon as it is next to you."
+    "hint": "Hunts you down two hexes at a time, and strikes as soon as it is next to you."
   },
   "guardian": {
     "name": "Guardian",

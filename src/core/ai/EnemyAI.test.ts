@@ -32,18 +32,28 @@ describe('guard behavior (Guardian)', () => {
 });
 
 describe('patrol behavior (Crawler)', () => {
-  it('steps one hex closer when the player is far away', () => {
+  it('closes in by its whole move range when the player is far away', () => {
     const room = makeRoom({ player: at(3, 7), enemies: [['crawler', at(3, 2)]] });
     const { enemy, actions } = plan(room);
 
-    expect(actions).toHaveLength(1);
-    const [move] = actions;
-    if (move?.type !== 'move') throw new Error('expected a move');
-    expect(enemy.position.distance(move.to)).toBe(1);
-    expect(move.to.distance(room.player.position)).toBe(enemy.position.distance(room.player.position) - 1);
+    expect(enemy.moveRange).toBe(2);
+    expect(actions).toHaveLength(enemy.moveRange);
+    let position = enemy.position;
+    for (const action of actions) {
+      if (action.type !== 'move') throw new Error('expected a move');
+      // One hex at a time, each one closer than the last.
+      expect(position.distance(action.to)).toBe(1);
+      expect(action.to.distance(room.player.position)).toBe(position.distance(room.player.position) - 1);
+      position = action.to;
+    }
   });
 
-  it('moves and attacks in the same turn when one step brings it adjacent', () => {
+  it('reaches and strikes a player three hexes away in a single turn', () => {
+    const { actions } = plan(makeRoom({ player: at(3, 6), enemies: [['crawler', at(3, 3)]] }));
+    expect(actions).toEqual([{ type: 'move', to: at(3, 4) }, { type: 'move', to: at(3, 5) }, attack]);
+  });
+
+  it('stops moving as soon as it is adjacent, and attacks', () => {
     const { actions } = plan(makeRoom({ player: at(3, 5), enemies: [['crawler', at(3, 3)]] }));
     expect(actions).toEqual([{ type: 'move', to: at(3, 4) }, attack]);
   });
