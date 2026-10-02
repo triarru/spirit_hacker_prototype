@@ -19,7 +19,7 @@ function describeSpec(spec: ActiveSpec): string {
   if (spec.firewallBonus > 0) parts.push(`FW +${spec.firewallBonus}`);
 
   if (spec.targeting === 'SELF') parts.push('self');
-  else if (spec.range === null) parts.push('any hex');
+  else if (spec.range === null) parts.push(spec.targeting === 'ENEMY' ? 'any range' : 'any hex');
   else parts.push(`${spec.targeting === 'LINE' ? 'line' : 'range'} ${spec.range}`);
   return parts.join(' · ');
 }

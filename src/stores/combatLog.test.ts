@@ -118,10 +118,8 @@ describe('describeEvents', () => {
       nameOf: (id) => names[id] ?? id,
       turn: combat.turn,
     });
-    expect(lines.map((line) => line.text)).toEqual([
-      'Vân cast brute_force() → Crawler takes 20 damage',
-      'Crawler FIREWALL BREACHED!',
-    ]);
+    // brute_force is FIRE, not the crawler's weakness: one bar off, no breach yet.
+    expect(lines.map((line) => line.text)).toEqual(['Vân cast brute_force() → Crawler takes 20 damage']);
   });
 });
 

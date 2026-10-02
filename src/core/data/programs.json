@@ -3,7 +3,7 @@
     "name": "brute_force()",
     "displayName": "Cưỡng Phá",
     "category": "Attack",
-    "tag": "SHOCK",
+    "tag": "FIRE",
     "tier": 1,
     "resourceType": "RAM",
     "active": {
@@ -113,10 +113,10 @@
       "apCost": 1,
       "ramCost": 5,
       "qiCost": 0,
-      "targeting": "ANY",
+      "targeting": "ENEMY",
       "range": null,
       "aoe": 0,
-      "damage": 0,
+      "damage": 5,
       "effects": [{ "type": "revealFog", "radius": 6 }]
     },
     "modifier": { "description": "Host spell has +1 range.", "modifyFn": "addRange", "value": 1 },

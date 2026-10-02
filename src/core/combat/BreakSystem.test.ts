@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { Enemy } from '../entities/Enemy';
 import { PLAYER_DATA } from '../entities/Player';
+import type { SpellTag } from '../programs/Program';
+import { getProgram } from '../programs/ProgramRegistry';
+import { SpellDeck } from '../programs/SpellDeck';
 import {
   BREAK_RULES,
   breachDamageMultiplier,
@@ -228,5 +231,61 @@ describe('inject virus', () => {
     const { combat, crawler } = setup();
     combat.endPlayerTurn();
     expect(combat.injectVirus(crawler.id)).toEqual([]);
+  });
+});
+
+describe('program tags against the crawler (weak to SHOCK)', () => {
+  const cast = (programId: string, weakness?: SpellTag) => {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 4), enemies: [['crawler', at(3, 3)]] }),
+      NEVER_DODGE,
+      new SpellDeck({ actives: [{ program: getProgram(programId), modifier: null }], passives: [], handSize: 1 }),
+    );
+    const [crawler] = combat.enemies;
+    if (!crawler) throw new Error('crawler missing');
+    crawler.hp = crawler.maxHp = 500;
+    if (weakness) crawler.weakness = weakness;
+    const events = combat.castSpell(0, crawler.position);
+    return { combat, crawler, events };
+  };
+
+  it('brute_force is FIRE: against the crawler it strips 1 bar, like any normal hit', () => {
+    const { crawler } = cast('brute_force');
+    expect(getProgram('brute_force').tag).toBe('FIRE');
+    expect(crawler.firewallCurrent).toBe(crawler.firewallMax - BREAK_RULES.normalHitFirewallDamage);
+    expect(crawler.breached).toBe(false);
+  });
+
+  it('brute_force cannot breach a crawler in one hit: it takes two', () => {
+    const { combat, crawler } = cast('brute_force');
+    expect(crawler.breached).toBe(false);
+
+    // The card is spent; the second hit is a basic attack.
+    combat.playerAttack(crawler.id);
+    expect(crawler.breached).toBe(true);
+  });
+
+  it('brute_force strips 2 bars from an enemy that is weak to FIRE', () => {
+    const { crawler } = cast('brute_force', 'FIRE');
+    expect(crawler.firewallCurrent).toBe(crawler.firewallMax - BREAK_RULES.weaknessHitFirewallDamage);
+  });
+
+  it('nmap_scan is SHOCK: against the crawler it strips 2 bars, for little damage', () => {
+    const { crawler, events } = cast('nmap_scan');
+    expect(getProgram('nmap_scan').tag).toBe('SHOCK');
+    expect(crawler.firewallCurrent).toBe(crawler.firewallMax - BREAK_RULES.weaknessHitFirewallDamage);
+    expect(crawler.breached).toBe(true);
+    expect(crawler.hp).toBe(500 - getProgram('nmap_scan').active.damage);
+    expect(getProgram('nmap_scan').active.damage).toBeLessThan(getProgram('brute_force').active.damage);
+    expect(events.map((event) => event.type)).toEqual(['spellCast', 'attacked', 'breached']);
+  });
+
+  it('nmap_scan reaches an enemy at any distance', () => {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 8), enemies: [['crawler', at(0, 0)]] }),
+      NEVER_DODGE,
+      new SpellDeck({ actives: [{ program: getProgram('nmap_scan'), modifier: null }], passives: [], handSize: 1 }),
+    );
+    expect(combat.getSpellTargets(0)).toEqual([at(0, 0)]);
   });
 });

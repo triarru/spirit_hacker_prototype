@@ -29,7 +29,7 @@ describe('program registry', () => {
     });
     expect(getProgram('incense_burn').active.effects).toContainEqual({ type: 'heal', amount: 15 });
     expect(getProgram('tran_yem').active).toMatchObject({ range: 2, effects: [{ type: 'stun', turns: 1 }] });
-    expect(getProgram('nmap_scan').active.range).toBeNull();
+    expect(getProgram('nmap_scan').active).toMatchObject({ range: null, targeting: 'ENEMY' });
   });
 
   it('pays for RAM programs with RAM and Qi programs with Qi', () => {

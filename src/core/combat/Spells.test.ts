@@ -54,15 +54,15 @@ describe('casting', () => {
       at: guardian.position,
     });
     expect(types(events)).toEqual(['spellCast', 'attacked']);
-    // SHOCK is not the guardian's weakness: one bar.
+    // FIRE is not the guardian's weakness: one bar.
     expect(guardian.firewallCurrent).toBe(guardian.firewallMax - BREAK_RULES.normalHitFirewallDamage);
   });
 
   it('strips two firewall bars when the tag matches the weakness, which can breach outright', () => {
-    const { combat, enemies } = setup({ enemies: [['crawler', at(3, 3)]], deck: deckOf([['brute_force']]) });
+    const { combat, enemies } = setup({ enemies: [['crawler', at(3, 3)]], deck: deckOf([['nmap_scan']]) });
     const [crawler] = enemies;
     if (!crawler) throw new Error('crawler missing');
-    expect(crawler.weakness).toBe(getProgram('brute_force').tag);
+    expect(crawler.weakness).toBe(getProgram('nmap_scan').tag);
 
     const events = combat.castSpell(0, crawler.position);
 
