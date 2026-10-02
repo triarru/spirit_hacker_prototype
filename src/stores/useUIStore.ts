@@ -30,6 +30,8 @@ export const useUIStore = create<UIState>((set, get) => ({
 
   clickHex: (hex) => {
     const combat = useCombatStore.getState();
+    // While a prompt is up, a click is a parry, not a selection.
+    if (combat.reactive) return;
     const entity = hex ? combat.grid.getEntityAt(hex) : null;
     if (entity?.kind === 'enemy') {
       set({ selectedEntityId: entity.id });

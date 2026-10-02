@@ -7,6 +7,13 @@ import type { HexCoord } from '../hex/HexCoord';
 import type { HexGrid } from '../hex/HexGrid';
 import { resolveAttack, type Rng } from './CombatResolver';
 import { affordablePath, moveRange, stepPlayer } from './Movement';
+import {
+  createDefensePrompt,
+  defenseEffects,
+  dodgeDestination,
+  type DefensePrompt,
+  type DefenseResult,
+} from './ReactiveDefense';
 import { endPlayerTurn, startPlayerTurn, turnOrder } from './TurnManager';
 
 export type CombatPhase = 'PLAYER_TURN' | 'ENEMY_TURN' | 'VICTORY' | 'DEFEAT';
@@ -23,6 +30,16 @@ export type CombatEvent =
       damage: number;
       dodged: boolean;
     }
+  | {
+      /** The player answered an attack's prompt with a parry or dodge that worked. */
+      type: 'defended';
+      kind: DefenseResult['kind'];
+      grade: 'perfect' | 'good';
+      attackerId: string;
+      /** Where the player stood when the attack came in. */
+      at: HexCoord;
+      apBanked: number;
+    }
   | { type: 'died'; entityId: string; at: HexCoord }
   | { type: 'phaseChanged'; phase: CombatPhase };
 
@@ -33,7 +50,8 @@ export type CombatEvent =
  * Every method is synchronous and returns the events it caused; an action that
  * is not legal right now changes nothing and returns no events. The enemy turn
  * is exposed one action at a time (plan, then apply) so the caller can pace
- * it, animate between actions, and later ask the player for a reaction.
+ * it, animate between actions, and run the reactive-defense prompt for an
+ * attack before applying it.
  */
 export class CombatManager {
   readonly grid: HexGrid;
@@ -109,7 +127,26 @@ export class CombatManager {
     return planEnemyTurn(enemy, { grid: this.grid, player: this.player, rng: this.rng });
   }
 
-  applyEnemyAction(enemyId: string, action: EnemyAction): CombatEvent[] {
+  /**
+   * The reactive-defense prompt this action gives the player, or null when it
+   * is not an attack the player can react to. Does not change any state.
+   */
+  getDefensePrompt(enemyId: string, action: EnemyAction): DefensePrompt | null {
+    const enemy = this.findEnemy(enemyId);
+    if (!enemy || this.phase !== 'ENEMY_TURN' || action.type !== 'attack') return null;
+    if (!inAttackRange(enemy, enemy.position, this.player.position)) return null;
+    return createDefensePrompt(enemy, this.player);
+  }
+
+  /**
+   * Carries out one planned action. For an attack, `defense` is how the player
+   * answered its prompt; leave it out for an attack that went unanswered.
+   */
+  applyEnemyAction(
+    enemyId: string,
+    action: EnemyAction,
+    defense: DefenseResult | null = null,
+  ): CombatEvent[] {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN') return [];
 
@@ -121,7 +158,7 @@ export class CombatManager {
     }
 
     if (!inAttackRange(enemy, enemy.position, this.player.position)) return [];
-    return [...this.attack(enemy, this.player, enemy.attackDamage), ...this.checkEnd()];
+    return [...this.enemyAttack(enemy, defense), ...this.checkEnd()];
   }
 
   /** Hands the turn back to the player, unless combat already ended. */
@@ -130,6 +167,42 @@ export class CombatManager {
     this.turn += 1;
     startPlayerTurn(this.player);
     return this.enterPhase('PLAYER_TURN');
+  }
+
+  /** An enemy's attack on the player, softened or cancelled by how the player defended. */
+  private enemyAttack(enemy: Enemy, defense: DefenseResult | null): CombatEvent[] {
+    const effects = defenseEffects(defense);
+    const events: CombatEvent[] = [];
+    const at = this.player.position;
+
+    if (defense && defense.grade !== 'miss') {
+      this.player.apBank += effects.apBank;
+      enemy.firewallCurrent = Math.max(0, enemy.firewallCurrent - effects.firewallDamage);
+      events.push({
+        type: 'defended',
+        kind: defense.kind,
+        grade: defense.grade,
+        attackerId: enemy.id,
+        at,
+        apBanked: effects.apBank,
+      });
+    }
+
+    // Whatever damage gets past the defense is resolved like any other hit,
+    // so the end-turn dodge chance can still save the player.
+    const damage = Math.round(enemy.attackDamage * effects.damageMultiplier);
+    if (damage > 0) events.push(...this.attack(enemy, this.player, damage));
+
+    if (defense?.direction) {
+      for (let hop = 0; hop < effects.teleportHexes; hop++) {
+        const from = this.player.position;
+        const to = dodgeDestination(this.grid, from, defense.direction, enemy.position);
+        if (!to) break;
+        this.grid.moveEntity(this.player, to);
+        events.push({ type: 'moved', entityId: this.player.id, from, to });
+      }
+    }
+    return events;
   }
 
   // --- Shared --------------------------------------------------------------

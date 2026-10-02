@@ -1,11 +1,17 @@
 import { create } from 'zustand';
 import { CombatManager, type CombatEvent, type CombatPhase } from '../core/combat/CombatManager';
+import {
+  ReactiveDefense,
+  type DefensePrompt,
+  type DefenseResult,
+} from '../core/combat/ReactiveDefense';
 import { loadRoom } from '../core/data/RoomLoader';
 import timing from '../core/data/timing.json';
 import type { Enemy } from '../core/entities/Enemy';
 import type { Player } from '../core/entities/Player';
 import type { HexCoord } from '../core/hex/HexCoord';
 import type { HexGrid } from '../core/hex/HexGrid';
+import { runReactivePrompt } from './reactiveLoop';
 
 const ROOM_ID = 'prototype_room';
 
@@ -29,6 +35,12 @@ interface CombatSnapshot {
 export interface CombatState extends CombatSnapshot {
   /** An action is still playing out; input is ignored until it finishes. */
   busy: boolean;
+  /**
+   * The reactive-defense prompt on screen, if any. This is the live session:
+   * its `elapsedSeconds` advances every frame without a store update, so read
+   * it per frame rather than subscribing to it.
+   */
+  reactive: ReactiveDefense | null;
   /** What the most recent change consisted of. Replaced, never appended to. */
   lastEvents: CombatEvent[];
   /** Walks the player to `hex` one step at a time. Does nothing if it is out of reach. */
@@ -63,9 +75,19 @@ export const useCombatStore = create<CombatState>((set, get) => {
     return true;
   };
 
+  /** Shows a prompt and waits for the player to answer it or run out of time. */
+  const promptDefense = async (prompt: DefensePrompt): Promise<DefenseResult> => {
+    const session = new ReactiveDefense(prompt);
+    set({ reactive: session });
+    const result = await runReactivePrompt(session);
+    set({ reactive: null });
+    return result;
+  };
+
   return {
     ...snapshot(),
     busy: false,
+    reactive: null,
     lastEvents: [],
 
     movePlayerTo: async (hex) => {
@@ -95,7 +117,10 @@ export const useCombatStore = create<CombatState>((set, get) => {
       for (const enemyId of combat.getEnemyTurnOrder()) {
         for (const action of combat.planEnemyTurn(enemyId)) {
           await sleep(timing.enemyActionDelaySeconds);
-          publish(combat.applyEnemyAction(enemyId, action));
+          // An attack the player can react to waits here for their parry or dodge.
+          const prompt = combat.getDefensePrompt(enemyId, action);
+          const defense = prompt ? await promptDefense(prompt) : null;
+          publish(combat.applyEnemyAction(enemyId, action, defense));
         }
         // A killing blow ends the fight on the spot; nobody else gets to act.
         if (combat.phase !== 'ENEMY_TURN') break;

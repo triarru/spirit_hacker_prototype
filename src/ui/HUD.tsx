@@ -6,10 +6,12 @@ export function HUD() {
   const endTurn = useCombatStore((state) => state.endTurn);
 
   // AP above maxAp came from the bank, so the row grows to show those dots too.
-  const dotCount = Math.max(player.maxAp, player.ap);
-  const dots = Array.from({ length: dotCount }, (_, index) => {
-    const filled = index < player.ap;
-    const banked = index >= player.maxAp;
+  // AP still sitting in the bank shows as extra gold dots: earned, usable next turn.
+  const usableCount = Math.max(player.maxAp, player.ap);
+  const dots = Array.from({ length: usableCount + player.apBank }, (_, index) => {
+    const pending = index >= usableCount;
+    const filled = pending || index < player.ap;
+    const banked = pending || index >= player.maxAp;
     return (
       <span
         key={index}
@@ -17,6 +19,10 @@ export function HUD() {
       />
     );
   });
+  const apLabel =
+    player.apBank > 0
+      ? `${player.ap} action points, ${player.apBank} banked for next turn`
+      : `${player.ap} action points`;
 
   return (
     <section className="panel hud">
@@ -31,11 +37,21 @@ export function HUD() {
       </div>
       <div className="hud-row">
         <span className="hud-label">AP</span>
-        <div className="ap-dots" role="img" aria-label={`${player.ap} action points`}>
+        <div className="ap-dots" role="img" aria-label={apLabel}>
           {dots}
         </div>
       </div>
-      <button type="button" className="end-turn" disabled={!canEndTurn} onClick={() => void endTurn()}>
+      <button
+        type="button"
+        className="end-turn"
+        disabled={!canEndTurn}
+        onClick={(event) => {
+          // Space is the parry key. Left focused, this button would also react to it,
+          // and a parry pressed a moment too late would end the player's next turn.
+          event.currentTarget.blur();
+          void endTurn();
+        }}
+      >
         End turn
       </button>
     </section>

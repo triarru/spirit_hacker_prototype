@@ -7,12 +7,19 @@ const COLOR = {
   damageToEnemy: 0xfde68a,
   damageToPlayer: 0xf87171,
   dodge: 0x7dd3fc,
+  perfect: 0x4ade80,
+  good: 0xfacc15,
   outline: 0x0b0f17,
 } as const;
 
 /** Where a popup starts relative to the hex center, and how far it floats up, in px. */
 const START_OFFSET_Y = -30;
 const RISE = 34;
+/** Vertical spacing between popups that appear on the same hex at the same moment, in px. */
+const STACK_SPACING = 24;
+
+const DAMAGE_FONT_SIZE = 22;
+const CALLOUT_FONT_SIZE = 15;
 
 interface Popup {
   text: Text;
@@ -20,24 +27,41 @@ interface Popup {
   elapsed: number;
 }
 
-/** Short-lived feedback drawn above the entities: floating damage numbers. */
+type DefendedEvent = Extract<CombatEvent, { type: 'defended' }>;
+
+function defendedLabel(event: DefendedEvent): string {
+  if (event.kind === 'dodge') return 'PERFECT DODGE';
+  if (event.grade === 'good') return 'PARRY';
+  return event.apBanked > 0 ? `PERFECT PARRY  +${event.apBanked} AP` : 'PERFECT PARRY';
+}
+
+/** Short-lived feedback drawn above the entities: floating damage numbers and callouts. */
 export class EffectRenderer {
   readonly container = new Container();
   private popups: Popup[] = [];
 
   /** Turns combat events into their on-screen effects. */
   play(events: CombatEvent[], playerId: string): void {
+    // Several events can land on one hex at once (a parry and the damage that
+    // got through); stack their popups instead of drawing them on top of each other.
+    const stacked = new Map<string, number>();
+    const spawn = (hex: HexCoord, label: string, color: number, fontSize: number): void => {
+      const level = stacked.get(hex.key()) ?? 0;
+      stacked.set(hex.key(), level + 1);
+      this.spawnPopup(hex, label, color, fontSize, level);
+    };
+
     for (const event of events) {
-      if (event.type !== 'attacked') continue;
-      if (event.dodged) {
-        this.spawnPopup(event.at, 'DODGE', COLOR.dodge);
-      } else {
-        const hitPlayer = event.targetId === playerId;
-        this.spawnPopup(
-          event.at,
-          `-${event.damage}`,
-          hitPlayer ? COLOR.damageToPlayer : COLOR.damageToEnemy,
-        );
+      if (event.type === 'defended') {
+        const color = event.grade === 'perfect' ? COLOR.perfect : COLOR.good;
+        spawn(event.at, defendedLabel(event), color, CALLOUT_FONT_SIZE);
+      } else if (event.type === 'attacked') {
+        if (event.dodged) {
+          spawn(event.at, 'DODGE', COLOR.dodge, DAMAGE_FONT_SIZE);
+        } else {
+          const color = event.targetId === playerId ? COLOR.damageToPlayer : COLOR.damageToEnemy;
+          spawn(event.at, `-${event.damage}`, color, DAMAGE_FONT_SIZE);
+        }
       }
     }
   }
@@ -59,13 +83,19 @@ export class EffectRenderer {
     }
   }
 
-  private spawnPopup(hex: HexCoord, label: string, color: number): void {
+  private spawnPopup(
+    hex: HexCoord,
+    label: string,
+    color: number,
+    fontSize: number,
+    stackLevel: number,
+  ): void {
     const center = hexToPixel(hex);
     const text = new Text({
       text: label,
       style: {
         fontFamily: 'ui-monospace, Menlo, Consolas, monospace',
-        fontSize: 22,
+        fontSize,
         fontWeight: '700',
         fill: color,
         stroke: { color: COLOR.outline, width: 4 },
@@ -74,7 +104,7 @@ export class EffectRenderer {
       resolution: 2,
     });
     text.anchor.set(0.5);
-    const startY = center.y + START_OFFSET_Y;
+    const startY = center.y + START_OFFSET_Y - STACK_SPACING * stackLevel;
     text.position.set(center.x, startY);
 
     this.container.addChild(text);

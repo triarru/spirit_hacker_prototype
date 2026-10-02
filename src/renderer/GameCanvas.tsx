@@ -6,6 +6,7 @@ import { selectSpellRange, useUIStore } from '../stores/useUIStore';
 import { EffectRenderer } from './EffectRenderer';
 import { EntityRenderer } from './EntityRenderer';
 import { HexGridRenderer } from './HexGridRenderer';
+import { ReactivePromptRenderer } from './ReactivePrompt';
 
 const BACKGROUND = 0x0b0f17;
 /** Free space kept between the grid and the canvas edge, in px. */
@@ -21,7 +22,13 @@ function mountGame(app: Application): () => void {
   const gridRenderer = new HexGridRenderer();
   const entityRenderer = new EntityRenderer();
   const effectRenderer = new EffectRenderer();
-  world.addChild(gridRenderer.container, entityRenderer.container, effectRenderer.container);
+  const promptRenderer = new ReactivePromptRenderer();
+  world.addChild(
+    gridRenderer.container,
+    entityRenderer.container,
+    promptRenderer.container,
+    effectRenderer.container,
+  );
   app.stage.addChild(world);
 
   const layout = (): void => {
@@ -116,6 +123,9 @@ function mountGame(app: Application): () => void {
     const deltaSeconds = ticker.deltaMS / 1000;
     entityRenderer.update(deltaSeconds);
     effectRenderer.update(deltaSeconds);
+    // The prompt's clock runs outside the store, so it is read fresh every frame.
+    const { reactive, player } = useCombatStore.getState();
+    promptRenderer.draw(reactive, player.position);
   };
   app.ticker.add(tick);
   app.renderer.on('resize', layout);

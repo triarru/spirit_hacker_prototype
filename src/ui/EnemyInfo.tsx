@@ -25,6 +25,10 @@ export function EnemyInfo() {
         <dd>
           {enemy.hp} / {enemy.maxHp}
         </dd>
+        <dt>Firewall</dt>
+        <dd>
+          {enemy.firewallCurrent} / {enemy.firewallMax}
+        </dd>
         <dt>Attack</dt>
         <dd>
           {enemy.attackDamage} {enemy.attackType}

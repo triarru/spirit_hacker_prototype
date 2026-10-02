@@ -1,0 +1,15 @@
+{
+  "parry": {
+    "durationSeconds": 1.2,
+    "perfectAtSeconds": 1.05,
+    "perfectWindowSeconds": 0.15,
+    "goodToleranceSeconds": 0.15,
+    "goodDamageMultiplier": 0.5,
+    "perfectApBank": 1,
+    "perfectFirewallDamage": 1
+  },
+  "dodge": {
+    "durationSeconds": 0.8,
+    "perfectTeleportHexes": 1
+  }
+}
