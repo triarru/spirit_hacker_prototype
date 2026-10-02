@@ -119,6 +119,9 @@ export class EffectRenderer {
         case 'turretExpired':
           spawn(event.at, 'TURRET OFFLINE', COLOR.muted, CALLOUT_FONT_SIZE);
           break;
+        case 'wallBroken':
+          spawn(event.at, 'WALL DOWN', COLOR.damageToPlayer, CALLOUT_FONT_SIZE);
+          break;
         case 'trapTriggered':
           spawn(event.at, 'TRAP!', COLOR.trap, CALLOUT_FONT_SIZE);
           break;

@@ -67,6 +67,12 @@ describe('describeEvents', () => {
       .toEqual(['Dodged the wrong way']);
   });
 
+  it('reports an enemy breaking through a temporary wall', () => {
+    expect(text([{ type: 'wallBroken', entityId: 'crawler_0', at: hex }, { type: 'terrainChanged' }])).toEqual([
+      'Crawler breaks through a wall',
+    ]);
+  });
+
   it('says what went wrong with a parry or dodge that missed', () => {
     const missed = (kind: 'parry' | 'dodge', reason: 'early' | 'late' | 'wrong_way'): CombatEvent => ({
       type: 'defenseMissed', kind, reason, attackerId: 'crawler_0', at: hex,

@@ -4,6 +4,9 @@ import type { HexGrid } from './HexGrid';
 /** Cost of stepping INTO a hex. Must be >= 1, or the A* heuristic stops being admissible. */
 export type StepCost = (hex: HexCoord) => number;
 
+/** Whether a hex can be stepped into at all. */
+export type CanEnter = (hex: HexCoord) => boolean;
+
 const UNIFORM_COST: StepCost = () => 1;
 
 interface PathNode {
@@ -36,17 +39,20 @@ function popBest(open: PathNode[]): PathNode | undefined {
 
 /**
  * A* over the hex grid. Returns the path from `start` to `goal` with both ends
- * included, or an empty array when the goal cannot be reached.
+ * included, or an empty array when the goal cannot be reached. By default a
+ * hex can be entered unless it is blocked; `canEnter` replaces that rule, for
+ * a mover that can get through something others cannot.
  */
 export function findPath(
   grid: HexGrid,
   start: HexCoord,
   goal: HexCoord,
   cost: StepCost = UNIFORM_COST,
+  canEnter: CanEnter = (hex) => !grid.isBlocked(hex),
 ): HexCoord[] {
   if (!grid.has(start) || !grid.has(goal)) return [];
   if (start.equals(goal)) return [start];
-  if (grid.isBlocked(goal)) return [];
+  if (!canEnter(goal)) return [];
 
   const open: PathNode[] = [{ hex: start, g: 0, f: start.distance(goal), parent: null }];
   const bestCost = new Map<string, number>([[start.key(), 0]]);
@@ -68,7 +74,7 @@ export function findPath(
       closed.add(currentKey);
       for (const next of current.hex.neighbors()) {
         const nextKey = next.key();
-        if (closed.has(nextKey) || grid.isBlocked(next)) continue;
+        if (closed.has(nextKey) || !canEnter(next)) continue;
 
         const g = current.g + cost(next);
         if (g >= (bestCost.get(nextKey) ?? Infinity)) continue;

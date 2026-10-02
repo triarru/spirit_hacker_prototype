@@ -88,6 +88,7 @@ export type CombatEvent =
   | { /** The player hacked the hex at `at`. */ type: 'hacked'; kind: HackKind; at: HexCoord }
   | { type: 'turretFired'; at: HexCoord; targetId: string; targetAt: HexCoord }
   | { /** A turret ran out of turns. */ type: 'turretExpired'; at: HexCoord }
+  | { /** An enemy smashed the temporary wall at `at`. */ type: 'wallBroken'; entityId: string; at: HexCoord }
   | { type: 'trapTriggered'; entityId: string; at: HexCoord }
   | { type: 'slowed'; entityId: string; at: HexCoord; turns: number }
   | {
@@ -533,6 +534,12 @@ export class CombatManager {
       ];
     }
 
+    if (action.type === 'breakWall') {
+      if (!this.canBreak(enemy, action.at)) return [];
+      this.grid.removeBarrier(action.at);
+      return [{ type: 'wallBroken', entityId: enemy.id, at: action.at }, ...this.terrainChanged()];
+    }
+
     if (!this.canStrike(enemy)) return [];
     const events = this.enemyAttack(enemy, defense);
     // It came for the player and got its strike in: it settles back into its guard where it stands.
@@ -553,7 +560,9 @@ export class CombatManager {
   isCancelled(enemyId: string, action: EnemyAction): boolean {
     const enemy = this.findEnemy(enemyId);
     if (!enemy) return true;
-    return action.type === 'move' ? this.interrupted.has(enemyId) : !this.canStrike(enemy);
+    if (action.type === 'move') return this.interrupted.has(enemyId);
+    if (action.type === 'breakWall') return !this.canBreak(enemy, action.at);
+    return !this.canStrike(enemy);
   }
 
   /** Hands the turn back to the player, unless combat already ended. */
@@ -670,6 +679,11 @@ export class CombatManager {
    */
   private canStrike(enemy: Enemy): boolean {
     return !enemy.breached && canHitFrom(this.grid, enemy, enemy.position, this.player.position);
+  }
+
+  /** Whether the enemy can smash the temporary wall on `hex` from where it stands. */
+  private canBreak(enemy: Enemy, hex: HexCoord): boolean {
+    return !enemy.breached && enemy.position.distance(hex) === 1 && this.grid.hasBarrier(hex);
   }
 
   // --- Shared --------------------------------------------------------------

@@ -326,7 +326,7 @@ describe('firewall_up', () => {
     }
   });
 
-  it('forces enemies to path around the wall', () => {
+  it('closes the path for anything that cannot break it', () => {
     const { combat, enemies } = setup({
       player: at(1, 4),
       enemies: [['crawler', at(1, 0)]],

@@ -156,6 +156,9 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
       case 'turretExpired':
         lines.push({ tone: 'neutral', text: 'Turret shut down' });
         break;
+      case 'wallBroken':
+        lines.push({ tone: 'bad', text: `${nameOf(event.entityId)} breaks through a wall` });
+        break;
       case 'trapTriggered': {
         const hit = events.find(
           (other): other is AttackedEvent =>

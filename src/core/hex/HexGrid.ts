@@ -86,6 +86,17 @@ export class HexGrid {
     this.requireCell(hex).barrierTurns = turns;
   }
 
+  /** Whether a temporary wall stands on this hex. */
+  hasBarrier(hex: HexCoord): boolean {
+    return (this.getCell(hex)?.barrierTurns ?? 0) > 0;
+  }
+
+  /** Takes down the temporary wall on this hex, if there is one. */
+  removeBarrier(hex: HexCoord): void {
+    const cell = this.getCell(hex);
+    if (cell) cell.barrierTurns = 0;
+  }
+
   /** Ages every temporary wall by one turn. Returns true if any of them came down. */
   tickBarriers(): boolean {
     let expired = false;

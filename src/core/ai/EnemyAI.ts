@@ -9,7 +9,8 @@ import { randomBehavior } from './RandomBehavior';
 
 export type EnemyAction =
   | { type: 'move'; to: HexCoord }
-  | { type: 'attack'; targetId: string };
+  | { type: 'attack'; targetId: string }
+  | { /** Smash the temporary wall on the next hex. */ type: 'breakWall'; at: HexCoord };
 
 export interface AIContext {
   grid: HexGrid;

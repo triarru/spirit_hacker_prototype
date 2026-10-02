@@ -93,6 +93,98 @@ describe('patrol behavior (Crawler)', () => {
   });
 });
 
+describe('patrol behavior and temporary walls', () => {
+  const WALL_TURNS = 10;
+  const breaks = (actions: EnemyAction[]) => actions.filter((action) => action.type === 'breakWall');
+
+  it('breaks a temporary wall that seals the only way in, which ends its turn', () => {
+    // A 1-wide corridor: the wall at (0, 2) leaves no way round.
+    const room = makeRoom({ cols: 1, rows: 6, player: at(0, 5), enemies: [['crawler', at(0, 0)]] });
+    room.grid.placeBarrier(at(0, 2), WALL_TURNS);
+
+    // One step up to the wall, then it spends the rest of the turn on it.
+    expect(plan(room).actions).toEqual([
+      { type: 'move', to: at(0, 1) },
+      { type: 'breakWall', at: at(0, 2) },
+    ]);
+  });
+
+  it('walks around a temporary wall when that costs it no more than breaking through', () => {
+    // Open floor: stepping round one wall hex is a one-step detour.
+    const room = makeRoom({ player: at(3, 7), enemies: [['crawler', at(3, 2)]] });
+    room.grid.placeBarrier(at(3, 3), WALL_TURNS);
+    const { actions } = plan(room);
+
+    expect(breaks(actions)).toEqual([]);
+    expect(actions.filter((action) => action.type === 'move')).toHaveLength(2);
+  });
+
+  it('never tries to break a permanent wall', () => {
+    const room = makeRoom({
+      cols: 1,
+      rows: 6,
+      player: at(0, 5),
+      enemies: [['crawler', at(0, 0)]],
+      walls: [at(0, 2)],
+    });
+    expect(plan(room).actions).toEqual([]);
+  });
+
+  it('reaches a player who has walled themselves in completely', () => {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 4), enemies: [['crawler', at(3, 1)]] }),
+      () => 0.999,
+    );
+    const [crawler] = combat.enemies;
+    if (!crawler) throw new Error('crawler missing');
+    for (const hex of combat.player.position.neighbors()) combat.grid.placeBarrier(hex, WALL_TURNS);
+    const passTurn = () => {
+      combat.player.ap = 0;
+      combat.endPlayerTurn();
+      return runEnemyPhase(combat);
+    };
+
+    // Turn 1: it walks up to the ring of walls and smashes the one in its way.
+    const first = passTurn();
+    expect(first).toContainEqual({ type: 'wallBroken', entityId: crawler.id, at: at(3, 3) });
+    expect(combat.grid.hasBarrier(at(3, 3))).toBe(false);
+    expect(combat.player.hp).toBe(combat.player.maxHp);
+
+    // Turn 2: it steps through the gap and strikes.
+    passTurn();
+    expect(crawler.position.equals(at(3, 3))).toBe(true);
+    expect(combat.player.hp).toBe(combat.player.maxHp - crawler.attackDamage);
+  });
+
+  it('cannot break a wall while its own firewall is down', () => {
+    const combat = new CombatManager(
+      makeRoom({ cols: 1, rows: 6, player: at(0, 5), enemies: [['crawler', at(0, 1)]] }),
+      () => 0.999,
+    );
+    const [crawler] = combat.enemies;
+    if (!crawler) throw new Error('crawler missing');
+    combat.grid.placeBarrier(at(0, 2), WALL_TURNS);
+    combat.player.ap = 0;
+    combat.endPlayerTurn();
+    crawler.breached = true;
+
+    const action = { type: 'breakWall', at: at(0, 2) } as const;
+    expect(combat.isCancelled(crawler.id, action)).toBe(true);
+    expect(combat.applyEnemyAction(crawler.id, action)).toEqual([]);
+    expect(combat.grid.hasBarrier(at(0, 2))).toBe(true);
+  });
+
+  it('a provoked guardian breaks walls too', () => {
+    const room = makeRoom({ cols: 1, rows: 6, player: at(0, 5), enemies: [['guardian', at(0, 1)]] });
+    room.grid.placeBarrier(at(0, 2), WALL_TURNS);
+    const [guardian] = room.enemies;
+    if (!guardian) throw new Error('guardian missing');
+    guardian.aggressive = true;
+
+    expect(plan(room).actions).toEqual([{ type: 'breakWall', at: at(0, 2) }]);
+  });
+});
+
 describe('random behavior (Ghost Process)', () => {
   const ROLLS = [0, 0.2, 0.4, 0.6, 0.8, 0.999];
 

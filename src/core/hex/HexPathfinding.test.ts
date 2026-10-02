@@ -110,6 +110,33 @@ describe('reachableHexes', () => {
   });
 });
 
+describe('findPath with a custom rule for what can be entered', () => {
+  it('lets a mover through something that blocks everyone else, at the cost it is given', () => {
+    const grid = new HexGrid(1, 5);
+    grid.placeBarrier(at(0, 2), 3);
+    const start = at(0, 0);
+    const goal = at(0, 4);
+
+    expect(findPath(grid, start, goal)).toEqual([]);
+
+    const through = findPath(grid, start, goal, undefined, (hex) => !grid.isBlocked(hex) || grid.hasBarrier(hex));
+    expect(through.map((hex) => hex.key())).toEqual([0, 1, 2, 3, 4].map((row) => at(0, row).key()));
+  });
+
+  it('prefers the cheaper route once breaking through has a price', () => {
+    // Open floor with one barrier hex straight ahead.
+    const grid = new HexGrid(7, 9);
+    grid.placeBarrier(at(3, 3), 3);
+    const canEnter = (hex: HexCoord) => !grid.isBlocked(hex) || grid.hasBarrier(hex);
+    const route = (wallCost: number) =>
+      findPath(grid, at(3, 2), at(3, 5), (hex) => (grid.hasBarrier(hex) ? 1 + wallCost : 1), canEnter);
+    const usesWall = (path: HexCoord[]) => path.some((hex) => hex.equals(at(3, 3)));
+
+    expect(usesWall(route(0))).toBe(true);
+    expect(usesWall(route(5))).toBe(false);
+  });
+});
+
 describe('prototype_room', () => {
   const { grid, player, enemies } = loadRoom('prototype_room');
 
