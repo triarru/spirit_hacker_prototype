@@ -291,9 +291,12 @@ export class CombatManager {
     return spec ? validTargets(this.grid, this.player.position, spec) : [];
   }
 
-  /** What casting the card in `slot` at `target` would do, or null if that cast is not legal. */
-  previewSpell(slot: number, target: HexCoord): SpellPreview | null {
-    const plan = this.planSpell(slot, target);
+  /**
+   * What casting the card in `slot` at `target` would do, or null if that cast
+   * is not legal. `rotation` turns a wall spell's wall; other spells ignore it.
+   */
+  previewSpell(slot: number, target: HexCoord, rotation = 0): SpellPreview | null {
+    const plan = this.planSpell(slot, target, rotation);
     if (!plan) return null;
     return {
       affected: plan.affected,
@@ -303,8 +306,8 @@ export class CombatManager {
     };
   }
 
-  castSpell(slot: number, target: HexCoord): CombatEvent[] {
-    const plan = this.planSpell(slot, target);
+  castSpell(slot: number, target: HexCoord, rotation = 0): CombatEvent[] {
+    const plan = this.planSpell(slot, target, rotation);
     if (!plan) return [];
     const { program, spec } = plan;
 
@@ -793,7 +796,7 @@ export class CombatManager {
   }
 
   /** Works out a cast without applying it; null if the cast is not legal right now. */
-  private planSpell(slot: number, target: HexCoord): SpellPlan | null {
+  private planSpell(slot: number, target: HexCoord, rotation: number): SpellPlan | null {
     const entry = this.deck.slots[slot];
     const spec = this.castableSpec(slot);
     if (!entry || !spec) return null;
@@ -801,7 +804,7 @@ export class CombatManager {
     const origin = this.player.position;
     if (!validTargets(this.grid, origin, spec).some((hex) => hex.equals(target))) return null;
 
-    const affected = affectedHexes(this.grid, origin, spec, target);
+    const affected = affectedHexes(this.grid, origin, spec, target, rotation);
     const hitsEnemies = spec.targeting === 'ENEMY' || spec.targeting === 'LINE';
     const wall = spec.effects.find((effect) => effect.type === 'createWall');
 

@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { HackOption, SpellPreview } from '../core/combat/CombatManager';
 import type { HackKind } from '../core/combat/EnvironmentHack';
 import type { HexCoord, Point } from '../core/hex/HexCoord';
+import { WALL_ROTATIONS } from '../core/programs/SpellTargeting';
 import {
   hackOptions,
   previewPath,
@@ -31,6 +32,8 @@ export interface UIState {
   spellTargets: HexCoord[];
   /** What casting at `hoveredHex` would do; null when it is not a valid target. */
   spellPreview: SpellPreview | null;
+  /** How many 60° steps the wall of the card being aimed has been turned. */
+  targetRotation: number;
 
   /** The next click on a hackable hex hacks it. */
   hackMode: boolean;
@@ -47,6 +50,8 @@ export interface UIState {
   selectHex: (hex: HexCoord | null) => void;
   /** Starts aiming the hand card from `slot`; picking the card already being aimed puts it back. */
   selectCard: (slot: number) => void;
+  /** Turns the wall of the card being aimed one step clockwise. Does nothing outside targeting mode. */
+  rotateTarget: () => void;
   toggleHackMode: () => void;
   /** Carries out one of the hacks offered by the open hack menu. */
   chooseHack: (kind: HackKind) => void;
@@ -56,7 +61,7 @@ export interface UIState {
 
 type ModeState = Pick<
   UIState,
-  'targetingSlot' | 'spellTargets' | 'spellPreview' | 'hackMode' | 'hackMenu'
+  'targetingSlot' | 'spellTargets' | 'spellPreview' | 'targetRotation' | 'hackMode' | 'hackMenu'
 >;
 
 /** No special mode: clicks select, attack and move. */
@@ -64,6 +69,7 @@ const NORMAL_MODE: ModeState = {
   targetingSlot: null,
   spellTargets: [],
   spellPreview: null,
+  targetRotation: 0,
   hackMode: false,
   hackMenu: null,
 };
@@ -75,12 +81,16 @@ export const useUIStore = create<UIState>((set, get) => ({
   ...NORMAL_MODE,
 
   setHoveredHex: (hex) => {
-    const { hoveredHex: current, targetingSlot, hackMode } = get();
+    const { hoveredHex: current, targetingSlot, targetRotation, hackMode } = get();
     // pointermove fires per pixel; only notify subscribers when the hex actually changes.
     if (current === hex || (current && hex && current.equals(hex))) return;
 
     if (targetingSlot !== null) {
-      set({ hoveredHex: hex, path: [], spellPreview: hex ? previewSpell(targetingSlot, hex) : null });
+      set({
+        hoveredHex: hex,
+        path: [],
+        spellPreview: hex ? previewSpell(targetingSlot, hex, targetRotation) : null,
+      });
     } else if (hackMode) {
       set({ hoveredHex: hex, path: [] });
     } else {
@@ -93,11 +103,11 @@ export const useUIStore = create<UIState>((set, get) => ({
     // While a prompt is up, a click is a parry, not a selection.
     if (combat.reactive) return;
 
-    const { targetingSlot, hackMode, hackMenu } = get();
+    const { targetingSlot, targetRotation, hackMode, hackMenu } = get();
     if (targetingSlot !== null) {
       // A click always ends targeting: on a valid hex it casts, anywhere else it cancels.
       set(NORMAL_MODE);
-      if (hex) combat.castSpell(targetingSlot, hex);
+      if (hex) combat.castSpell(targetingSlot, hex, targetRotation);
       return;
     }
 
@@ -157,6 +167,16 @@ export const useUIStore = create<UIState>((set, get) => ({
     });
   },
 
+  rotateTarget: () => {
+    const { targetingSlot, targetRotation, hoveredHex } = get();
+    if (targetingSlot === null) return;
+    const next = (targetRotation + 1) % WALL_ROTATIONS;
+    set({
+      targetRotation: next,
+      spellPreview: hoveredHex ? previewSpell(targetingSlot, hoveredHex, next) : null,
+    });
+  },
+
   toggleHackMode: () => {
     if (get().hackMode) {
       set(NORMAL_MODE);
@@ -188,7 +208,7 @@ useCombatStore.subscribe((combat, previous) => {
     return;
   }
 
-  const { hoveredHex, path, targetingSlot, hackMode } = useUIStore.getState();
+  const { hoveredHex, path, targetingSlot, targetRotation, hackMode } = useUIStore.getState();
 
   if (targetingSlot !== null) {
     const targets = spellTargets(targetingSlot);
@@ -197,7 +217,7 @@ useCombatStore.subscribe((combat, previous) => {
     else {
       useUIStore.setState({
         spellTargets: targets,
-        spellPreview: hoveredHex ? previewSpell(targetingSlot, hoveredHex) : null,
+        spellPreview: hoveredHex ? previewSpell(targetingSlot, hoveredHex, targetRotation) : null,
       });
     }
     return;

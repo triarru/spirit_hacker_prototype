@@ -126,8 +126,8 @@ export interface CombatState extends CombatSnapshot {
   attackEnemy: (enemyId: string) => void;
   /** Turns a breached enemy on its nearest ally. Does nothing if that is not possible right now. */
   injectVirus: (enemyId: string) => void;
-  /** Casts the hand card from Active slot `slot` at `hex`. Does nothing if that cast is not legal. */
-  castSpell: (slot: number, hex: HexCoord) => void;
+  /** Casts the hand card from Active slot `slot` at `hex`, its wall (if any) turned `rotation` steps. Does nothing if that cast is not legal. */
+  castSpell: (slot: number, hex: HexCoord, rotation?: number) => void;
   /** Hacks `hex`. Does nothing if that hack is not possible right now. */
   hack: (hex: HexCoord, kind: HackKind) => void;
   /** Ends the player turn and plays out the enemy turn. */
@@ -223,9 +223,9 @@ export const useCombatStore = create<CombatState>((set, get) => {
       publish(combat.injectVirus(enemyId));
     },
 
-    castSpell: (slot, hex) => {
+    castSpell: (slot, hex, rotation = 0) => {
       if (get().busy) return;
-      publish(combat.castSpell(slot, hex));
+      publish(combat.castSpell(slot, hex, rotation));
     },
 
     hack: (hex, kind) => {
@@ -301,9 +301,9 @@ export function spellTargets(slot: number): HexCoord[] {
 }
 
 /** What casting the hand card in `slot` at `hex` would do, or null if that cast is not legal. */
-export function previewSpell(slot: number, hex: HexCoord): SpellPreview | null {
+export function previewSpell(slot: number, hex: HexCoord, rotation = 0): SpellPreview | null {
   if (useCombatStore.getState().busy) return null;
-  return combat.previewSpell(slot, hex);
+  return combat.previewSpell(slot, hex, rotation);
 }
 
 /** What the player could do to `hex` in hack mode. Empty while busy or if it is not hackable. */

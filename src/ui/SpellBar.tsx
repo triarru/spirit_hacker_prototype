@@ -58,6 +58,10 @@ export function SpellBar() {
     (state) => state.phase === 'PLAYER_TURN' || state.phase === 'ENEMY_TURN',
   );
   const targetingSlot = useUIStore((state) => state.targetingSlot);
+  // A wall can be turned before it is placed; say so only while one is being aimed.
+  const aimingWall = hand.some(
+    (card) => card.slot === targetingSlot && card.spec.effects.some((effect) => effect.type === 'createWall'),
+  );
   const hackMode = useUIStore((state) => state.hackMode);
   const selectCard = useUIStore((state) => state.selectCard);
 
@@ -69,7 +73,7 @@ export function SpellBar() {
         {hackMode
           ? HACK_HINT
           : targetingSlot !== null
-            ? 'Click a highlighted hex to cast · Esc or right-click to cancel'
+            ? `Click a highlighted hex to cast${aimingWall ? ' · R to rotate the wall' : ''} · Esc or right-click to cancel`
             : hand.length > 0
               ? 'Pick a program'
               : 'No programs left this turn'}

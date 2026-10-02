@@ -283,6 +283,49 @@ describe('firewall_up', () => {
     expect(combat.terrainVersion).toBe(versionBefore + 2);
   });
 
+  it('can be turned: six rotations give six different walls around the hex it is aimed at', () => {
+    // Two hexes from the caster, so none of the target's neighbors is the caster's own hex.
+    const target = at(3, 2);
+    const fresh = () => setup({ enemies: [['guardian', at(0, 0)]], deck: deckOf([['firewall_up']]) }).combat;
+    const walls = [0, 1, 2, 3, 4, 5].map((rotation) => fresh().previewSpell(0, target, rotation)?.walls ?? []);
+
+    for (const wall of walls) {
+      expect(wall).toHaveLength(2);
+      expect(wall[0]?.equals(target)).toBe(true);
+      expect(wall[1]?.distance(target)).toBe(1);
+    }
+    // Every neighbor of the target is used exactly once.
+    expect(new Set(walls.map((wall) => wall[1]?.key())).size).toBe(6);
+    // Unrotated, the wall runs around the caster: both hexes are the same distance from them.
+    expect(walls[0]?.[1]?.distance(at(3, 4))).toBe(target.distance(at(3, 4)));
+    // A seventh turn comes back round to where it started.
+    expect(fresh().previewSpell(0, target, 6)?.walls).toEqual(walls[0]);
+  });
+
+  it('raises the wall exactly where the rotated preview showed it', () => {
+    const { combat } = setup({ enemies: [['guardian', at(0, 0)]], deck: deckOf([['firewall_up']]) });
+    const preview = combat.previewSpell(0, at(3, 3), 2)?.walls ?? [];
+
+    combat.castSpell(0, at(3, 3), 2);
+
+    expect(preview).toHaveLength(2);
+    for (const hex of preview) expect(combat.grid.isBlocked(hex)).toBe(true);
+    // The unrotated second hex stays open.
+    expect(combat.grid.isBlocked(at(4, 4))).toBe(false);
+  });
+
+  it('is cut short when the rotated hex cannot hold a wall', () => {
+    const { combat } = setup({
+      enemies: [['guardian', at(0, 0)]],
+      walls: at(3, 3).neighbors(),
+      deck: deckOf([['firewall_up']]),
+    });
+    // The player stands on one of those neighbors; makeRoom put them there after the walls.
+    for (const rotation of [0, 1, 2, 3, 4, 5]) {
+      expect(combat.previewSpell(0, at(3, 3), rotation)?.walls).toEqual([at(3, 3)]);
+    }
+  });
+
   it('forces enemies to path around the wall', () => {
     const { combat, enemies } = setup({
       player: at(1, 4),

@@ -7,7 +7,7 @@ const CONTROLS: Array<[keys: string, action: string]> = [
   ['Space / Click', 'parry when the rings meet'],
   ['Arrows / WASD', 'press the arrow as the shot lands'],
   ['Scroll', 'zoom'],
-  ['R', 'try again, once the fight is over'],
+  ['R', 'rotate a wall while aiming · try again after the fight'],
 ];
 
 /** The input cheat sheet, for someone playing for the first time. */

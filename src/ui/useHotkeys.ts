@@ -12,7 +12,7 @@ function isTyping(target: EventTarget | null): boolean {
  *   1-9  pick the card in that position of the hand
  *   H    hack mode on / off
  *   E    end turn
- *   R    try again, once the fight is over
+ *   R    turn the wall of the card being aimed; try again, once the fight is over
  *   Esc  cancel targeting or hack mode
  *
  * Each store action already refuses to run at the wrong time (out of turn,
@@ -42,7 +42,9 @@ export function useHotkeys(): void {
           void combat.endTurn();
           return;
         case 'KeyR':
-          combat.restart();
+          // The two never overlap: nothing can be aimed once the fight is over.
+          if (ui.targetingSlot !== null) ui.rotateTarget();
+          else combat.restart();
           return;
         default: {
           const digit = /^Digit([1-9])$/.exec(event.code)?.[1];

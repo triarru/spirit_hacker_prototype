@@ -36,13 +36,15 @@ export function validTargets(grid: HexGrid, origin: HexCoord, spec: ActiveSpec):
 
 /**
  * The hexes a spell touches when aimed at `target`. For a spell that hits
- * enemies these are the hexes it hits; for a wall spell, where the wall goes.
+ * enemies these are the hexes it hits; for a wall spell, where the wall goes,
+ * turned `rotation` steps from its default direction.
  */
 export function affectedHexes(
   grid: HexGrid,
   origin: HexCoord,
   spec: ActiveSpec,
   target: HexCoord,
+  rotation = 0,
 ): HexCoord[] {
   switch (spec.targeting) {
     case 'SELF':
@@ -54,7 +56,7 @@ export function affectedHexes(
       return lineHexes(grid, origin, target, spec.range ?? origin.distance(target));
     case 'FLOOR': {
       const wall = spec.effects.find((effect) => effect.type === 'createWall');
-      return wallHexes(grid, origin, target, wall?.count ?? 1);
+      return wallHexes(grid, origin, target, wall?.count ?? 1, rotation);
     }
   }
 }
@@ -84,31 +86,56 @@ function lineHexes(grid: HexGrid, origin: HexCoord, target: HexCoord, length: nu
   return line;
 }
 
+/** The six directions a wall can run in from the hex it is aimed at. */
+export const WALL_ROTATIONS = 6;
+
 /**
- * Up to `count` wall hexes: `target`, then its neighbors going clockwise around
- * the caster at the same distance, so the wall forms an arc facing them. The
- * wall ends early at the first hex that cannot hold one.
+ * Up to `count` wall hexes in a straight row: `target`, then on from it in one
+ * of the six hex directions. Unrotated, the row runs clockwise around the
+ * caster, so the wall stands across their line to the target; each step of
+ * `rotation` turns it 60° clockwise about `target`. The wall ends early at the
+ * first hex that cannot hold one.
  */
-function wallHexes(grid: HexGrid, origin: HexCoord, target: HexCoord, count: number): HexCoord[] {
+function wallHexes(
+  grid: HexGrid,
+  origin: HexCoord,
+  target: HexCoord,
+  count: number,
+  rotation: number,
+): HexCoord[] {
   if (!canHoldWall(grid, target)) return [];
 
-  const center = hexToPixel(origin);
-  const angleOf = (hex: HexCoord): number => {
-    const point = hexToPixel(hex);
-    return Math.atan2(point.y - center.y, point.x - center.x);
+  // Screen y points down, so increasing atan2 angle runs clockwise.
+  const clockwiseAround = (center: HexCoord, hexes: HexCoord[]): HexCoord[] => {
+    const middle = hexToPixel(center);
+    const angleOf = (hex: HexCoord): number => {
+      const point = hexToPixel(hex);
+      return Math.atan2(point.y - middle.y, point.x - middle.x);
+    };
+    return [...hexes].sort((a, b) => angleOf(a) - angleOf(b));
   };
 
-  // Screen y points down, so increasing atan2 angle runs clockwise.
-  const ring = origin
-    .hexesInRange(origin.distance(target))
-    .filter((hex) => origin.distance(hex) === origin.distance(target))
-    .sort((a, b) => angleOf(a) - angleOf(b));
-  const start = ring.findIndex((hex) => hex.equals(target));
+  // The hex after `target` going clockwise around the caster, at the same distance from them.
+  const distance = origin.distance(target);
+  const ring = clockwiseAround(
+    origin,
+    origin.hexesInRange(distance).filter((hex) => origin.distance(hex) === distance),
+  );
+  const unrotated = ring[(ring.findIndex((hex) => hex.equals(target)) + 1) % ring.length];
 
-  const wall: HexCoord[] = [];
-  for (let step = 0; step < Math.min(count, ring.length); step++) {
-    const hex = ring[(start + step) % ring.length];
-    if (!hex || !canHoldWall(grid, hex)) break;
+  const directions = clockwiseAround(target, target.neighbors());
+  const first = Math.max(0, directions.findIndex((hex) => unrotated?.equals(hex)));
+  const turns = ((rotation % WALL_ROTATIONS) + WALL_ROTATIONS) % WALL_ROTATIONS;
+  const next = directions[(first + turns) % directions.length];
+  if (!next) return [target];
+
+  const wall: HexCoord[] = [target];
+  for (let step = 1; step < count; step++) {
+    const hex = new HexCoord(
+      target.q + (next.q - target.q) * step,
+      target.r + (next.r - target.r) * step,
+    );
+    if (!canHoldWall(grid, hex)) break;
     wall.push(hex);
   }
   return wall;
