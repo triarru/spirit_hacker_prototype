@@ -3,7 +3,8 @@ import { HACK_RULES } from '../core/combat/EnvironmentHack';
 import { useCombatStore } from '../stores/useCombatStore';
 import { useUIStore } from '../stores/useUIStore';
 import { cssColor, TAG_COLOR } from '../theme';
-import { describeCost, describeSpec } from './programText';
+import { useLabels } from './labels';
+import { describeResources, describeSpec } from './programText';
 
 const HACK_HINT =
   `Hack: terminal → turret (${HACK_RULES.turret.ramCost} RAM) · ` +
@@ -20,6 +21,8 @@ interface SpellCardProps {
 
 function SpellCard({ card, hotkey, selected, disabled, onPick }: SpellCardProps) {
   const { program, modifier, spec } = card;
+  const mode = useUIStore((state) => state.mode);
+  const labels = useLabels();
   return (
     <button
       type="button"
@@ -32,18 +35,22 @@ function SpellCard({ card, hotkey, selected, disabled, onPick }: SpellCardProps)
         onPick();
       }}
     >
+      <span className="spell-card-ap">
+        {spec.apCost} {labels.ap}
+      </span>
       <span className="spell-card-head">
-        <strong>{program.displayName}</strong>
         <kbd>{hotkey}</kbd>
+        {/* The machine calls it by its function name; the spirit world by its given name. */}
+        <strong>{mode === 'grid' ? program.name : program.displayName}</strong>
       </span>
-      <span className="spell-card-name">
-        {program.name} <em>{spec.tag}</em>
+      <span className="spell-card-effect">{describeSpec(spec, mode)}</span>
+      <span className="spell-card-foot">
+        <span className="spell-card-cost">{describeResources(spec, labels, mode)}</span>
+        <em className="spell-card-tag">{labels.tags[spec.tag]}</em>
       </span>
-      <span className="spell-card-effect">{describeSpec(spec)}</span>
-      <span className="spell-card-cost">{describeCost(spec)}</span>
       {modifier && (
         <span className="spell-card-modifier" title={modifier.modifier.description}>
-          + {modifier.name} {modifier.modifier.description}
+          +{mode === 'grid' ? modifier.name : modifier.displayName}
         </span>
       )}
     </button>

@@ -12,8 +12,7 @@ export function CombatLog() {
   }, [log]);
 
   return (
-    <section className="panel combat-log">
-      <h2>Combat log</h2>
+    <section className="combat-log" aria-label="Combat log">
       <ol ref={listRef}>
         {log.map((entry) => (
           <li key={entry.id} className={`log-${entry.tone}`}>

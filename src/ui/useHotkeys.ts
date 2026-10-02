@@ -13,6 +13,7 @@ function isTyping(target: EventTarget | null): boolean {
  *   H    hack mode on / off
  *   E    end turn
  *   R    turn the wall of the card being aimed; try again, once the fight is over
+ *   V    switch the HUD between Grid and Veil mode
  *   Esc  cancel targeting or hack mode
  *
  * Each store action already refuses to run at the wrong time (out of turn,
@@ -40,6 +41,9 @@ export function useHotkeys(): void {
           return;
         case 'KeyE':
           void combat.endTurn();
+          return;
+        case 'KeyV':
+          ui.toggleMode();
           return;
         case 'KeyR':
           // The two never overlap: nothing can be aimed once the fight is over.

@@ -1,104 +1,86 @@
 import { useCombatStore } from '../stores/useCombatStore';
-import { useUIStore } from '../stores/useUIStore';
+import { useLabels } from './labels';
 
+interface VitalProps {
+  label: string;
+  value: number;
+  max: number;
+  fill: string;
+}
+
+function Vital({ label, value, max, fill }: VitalProps) {
+  return (
+    <div className="vital">
+      <span className="vital-label">{label}</span>
+      <div className="vital-bar" role="img" aria-label={`${label} ${value} of ${max}`}>
+        <div className={`vital-fill ${fill}`} style={{ width: `${(value / max) * 100}%` }} />
+        <span className="vital-value">{value}</span>
+      </div>
+    </div>
+  );
+}
+
+/** The player's three pools: health, RAM for programs, Qi for rites. */
 export function HUD() {
   const player = useCombatStore((state) => state.player);
-  const canEndTurn = useCombatStore((state) => state.phase === 'PLAYER_TURN' && !state.busy);
-  const endTurn = useCombatStore((state) => state.endTurn);
-  const passives = useCombatStore((state) => state.passives);
-  const canHack = useCombatStore(
-    (state) => state.phase === 'PLAYER_TURN' && !state.busy && state.hackTargets.length > 0,
-  );
-  const hackMode = useUIStore((state) => state.hackMode);
-  const toggleHackMode = useUIStore((state) => state.toggleHackMode);
 
-  // AP above maxAp came from the bank, so the row grows to show those dots too.
-  // AP still sitting in the bank shows as extra gold dots: earned, usable next turn.
+  return (
+    <section className="hud">
+      <Vital label="HP" value={player.hp} max={player.maxHp} fill="bar-hp" />
+      <Vital label="RAM" value={player.ram} max={player.maxRam} fill="bar-ram" />
+      <Vital label="Qi" value={player.qi} max={player.maxQi} fill="bar-qi" />
+    </section>
+  );
+}
+
+/**
+ * Action points as dots: filled is available, hollow is spent. AP above the
+ * usual maximum came from the bank and is gold. AP still sitting in the bank,
+ * earned for next turn, shows as gold dots after the divider.
+ */
+export function ApDots() {
+  const player = useCombatStore((state) => state.player);
   const usableCount = Math.max(player.maxAp, player.ap);
-  const dots = Array.from({ length: usableCount + player.apBank }, (_, index) => {
-    const pending = index >= usableCount;
-    const filled = pending || index < player.ap;
-    const banked = pending || index >= player.maxAp;
-    return (
-      <span
-        key={index}
-        className={`ap-dot${filled ? ' ap-dot-filled' : ''}${banked ? ' ap-dot-banked' : ''}`}
-      />
-    );
-  });
-  const apLabel =
+  const usable = Array.from({ length: usableCount }, (_, index) => (
+    <span
+      key={index}
+      className={`ap-dot${index < player.ap ? ' ap-dot-filled' : ''}${index >= player.maxAp ? ' ap-dot-banked' : ''}`}
+    />
+  ));
+  const banked = Array.from({ length: player.apBank }, (_, index) => (
+    <span key={index} className="ap-dot ap-dot-filled ap-dot-banked" />
+  ));
+  const label =
     player.apBank > 0
       ? `${player.ap} action points, ${player.apBank} banked for next turn`
       : `${player.ap} action points`;
 
   return (
-    <section className="panel hud">
-      <div className="hud-row">
-        <span className="hud-label">HP</span>
-        <div className="bar" role="img" aria-label={`HP ${player.hp} of ${player.maxHp}`}>
-          <div className="bar-fill bar-hp" style={{ width: `${(player.hp / player.maxHp) * 100}%` }} />
-        </div>
-        <span className="hud-value">
-          {player.hp}/{player.maxHp}
-        </span>
-      </div>
-      <div className="hud-row">
-        <span className="hud-label">RAM</span>
-        <div className="bar" role="img" aria-label={`RAM ${player.ram} of ${player.maxRam}`}>
-          <div className="bar-fill bar-ram" style={{ width: `${(player.ram / player.maxRam) * 100}%` }} />
-        </div>
-        <span className="hud-value">
-          {player.ram}/{player.maxRam}
-        </span>
-      </div>
-      <div className="hud-row">
-        <span className="hud-label">Qi</span>
-        <div className="bar" role="img" aria-label={`Qi ${player.qi} of ${player.maxQi}`}>
-          <div className="bar-fill bar-qi" style={{ width: `${(player.qi / player.maxQi) * 100}%` }} />
-        </div>
-        <span className="hud-value">
-          {player.qi}/{player.maxQi}
-        </span>
-      </div>
-      <div className="hud-row">
-        <span className="hud-label">AP</span>
-        <div className="ap-dots" role="img" aria-label={apLabel}>
-          {dots}
-        </div>
-      </div>
-      <button
-        type="button"
-        className={`hack-button${hackMode ? ' hack-button-active' : ''}`}
-        disabled={!canHack}
-        onClick={(event) => {
-          event.currentTarget.blur();
-          toggleHackMode();
-        }}
-      >
-        Hack <kbd>H</kbd>
-      </button>
-      <button
-        type="button"
-        className="end-turn"
-        disabled={!canEndTurn}
-        onClick={(event) => {
-          // Space is the parry key. Left focused, this button would also react to it,
-          // and a parry pressed a moment too late would end the player's next turn.
-          event.currentTarget.blur();
-          void endTurn();
-        }}
-      >
-        End turn <kbd>E</kbd>
-      </button>
-      {passives.length > 0 && (
-        <ul className="passives">
-          {passives.map((program) => (
-            <li key={program.id}>
-              <strong>{program.name}</strong> {program.passive.description}
-            </li>
-          ))}
-        </ul>
-      )}
+    <div className="ap-dots" role="img" aria-label={label}>
+      {usable}
+      {banked.length > 0 && <span className="ap-divider" />}
+      {banked}
+    </div>
+  );
+}
+
+/** The programs slotted as passives: always on, so they sit off to the side. */
+export function Passives() {
+  const passives = useCombatStore((state) => state.passives);
+  const inFight = useCombatStore((state) => state.phase === 'PLAYER_TURN' || state.phase === 'ENEMY_TURN');
+  const labels = useLabels();
+  if (!inFight || passives.length === 0) return null;
+
+  return (
+    <section className="panel passives-panel">
+      <h2>{labels.passives}</h2>
+      <ul className="passives">
+        {passives.map((program) => (
+          <li key={program.id}>
+            <strong>{program.name}</strong> {program.passive.description}
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

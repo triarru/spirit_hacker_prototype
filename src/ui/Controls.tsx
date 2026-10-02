@@ -7,10 +7,11 @@ const CONTROLS: Array<[keys: string, action: string]> = [
   ['Space / Click', 'parry when the rings meet'],
   ['Arrows / WASD', 'press the arrow as the shot lands'],
   ['Scroll', 'zoom'],
+  ['V', 'switch between Grid and Veil mode'],
   ['R', 'rotate a wall while aiming · try again after the fight'],
 ];
 
-/** The input cheat sheet, for someone playing for the first time. */
+/** The input cheat sheet, for someone playing for the first time. Opened from the action bar. */
 export function Controls() {
   return (
     <section className="panel controls">

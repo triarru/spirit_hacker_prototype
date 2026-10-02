@@ -1,21 +1,68 @@
-:root {
-  --bg: #0b0f17;
-  --panel: rgba(13, 18, 28, 0.88);
-  --border: #1f2a3a;
-  --text: #cbd5e1;
-  --text-dim: #64748b;
-  --cyan: #22d3ee;
-  --gold: #facc15;
+/*
+ * Two skins over one layout. Grid mode is the machine's view: cold, monospaced,
+ * cyan. Veil mode is the spirit world's: warm, serif, gold. Everything below
+ * reads its colors and typeface from these tokens, so a mode is only a set of
+ * values.
+ */
+:root,
+[data-mode='grid'] {
+  --bg: #060a12;
+  --bg-glow: #0c1a28;
+  --grid-line: rgba(34, 211, 238, 0.035);
+  --panel: rgba(8, 13, 22, 0.84);
+  --border: #1c2a3c;
+  --border-strong: #2f4560;
+  --text: #c8d6e5;
+  --text-dim: #5f7187;
+  --accent: #22d3ee;
+  --accent-soft: rgba(34, 211, 238, 0.14);
+  --accent-ink: #04121a;
+  --gold: #e3b341;
+  --danger: #ef4444;
   --virus: #c084fc;
-  --spell: #f97316;
-  --hp: #ef4444;
+  --good: #4ade80;
+  --hp-from: #8f241c;
+  --hp-to: #d2422f;
+  --ram-from: #0891b2;
+  --ram-to: #22d3ee;
+  --qi-from: #a8821c;
+  --qi-to: #e3b341;
+  --track: #0e1622;
+  --font: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  --display-spacing: 0.3em;
+}
 
+[data-mode='veil'] {
+  --bg: #0a0605;
+  --bg-glow: #1f100a;
+  --grid-line: rgba(212, 167, 44, 0.028);
+  --panel: rgba(14, 8, 6, 0.86);
+  --border: #3a2416;
+  --border-strong: #6b4520;
+  --text: #dccaa6;
+  --text-dim: #7d6548;
+  --accent: #d4a72c;
+  --accent-soft: rgba(212, 167, 44, 0.14);
+  --accent-ink: #1a0f04;
+  --gold: #d4a72c;
+  --danger: #b3261e;
+  --virus: #a36bd6;
+  --good: #9bbf6a;
+  --hp-from: #6e1611;
+  --hp-to: #a8281f;
+  --ram-from: #3c5568;
+  --ram-to: #5f8399;
+  --qi-from: #9a7618;
+  --qi-to: #d4a72c;
+  --track: #150c08;
+  --font: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Book Antiqua', Georgia, serif;
+  --display-spacing: 0.22em;
+}
+
+:root {
   color-scheme: dark;
-  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
   font-size: 13px;
   line-height: 1.5;
-  color: var(--text);
-  background: var(--bg);
 }
 
 * {
@@ -28,12 +75,21 @@ body,
   height: 100%;
   margin: 0;
   overflow: hidden;
+  background: #060a12;
 }
 
 .app {
   position: relative;
   width: 100%;
   height: 100%;
+  font-family: var(--font);
+  color: var(--text);
+  /* The canvas is see-through, so this is what the board floats over: a faint grid and a pool of light. */
+  background:
+    linear-gradient(var(--grid-line) 1px, transparent 1px) 0 0 / 44px 44px,
+    linear-gradient(90deg, var(--grid-line) 1px, transparent 1px) 0 0 / 44px 44px,
+    radial-gradient(ellipse 70% 60% at 50% 46%, var(--bg-glow) 0%, var(--bg) 62%);
+  transition: background-color 0.3s;
 }
 
 .game-canvas {
@@ -56,29 +112,110 @@ body,
   position: absolute;
 }
 
+button {
+  font-family: inherit;
+}
+
+kbd {
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 10px;
+  opacity: 0.65;
+}
+
+/* --- Frame: the corner brackets of a viewfinder around the whole screen ------------------- */
+
+.frame {
+  inset: 10px;
+}
+
+.frame i {
+  position: absolute;
+  width: 26px;
+  height: 26px;
+  border: 0 solid var(--border-strong);
+}
+
+.frame i:nth-child(1) {
+  top: 0;
+  left: 0;
+  border-top-width: 2px;
+  border-left-width: 2px;
+}
+
+.frame i:nth-child(2) {
+  top: 0;
+  right: 0;
+  border-top-width: 2px;
+  border-right-width: 2px;
+}
+
+.frame i:nth-child(3) {
+  bottom: 0;
+  left: 0;
+  border-bottom-width: 2px;
+  border-left-width: 2px;
+}
+
+.frame i:nth-child(4) {
+  right: 0;
+  bottom: 0;
+  border-right-width: 2px;
+  border-bottom-width: 2px;
+}
+
+/* --- Top right: title and the mode switch ------------------------------------------------ */
+
 .title {
-  top: 16px;
-  left: 20px;
+  top: 22px;
+  right: 30px;
+  display: grid;
+  justify-items: end;
+  gap: 2px;
+  text-align: right;
 }
 
 .title h1 {
   margin: 0;
-  font-size: 16px;
+  font-size: 13px;
   font-weight: 600;
-  letter-spacing: 0.24em;
+  letter-spacing: var(--display-spacing);
   text-transform: uppercase;
-  color: var(--cyan);
+  color: var(--accent);
 }
 
 .title span {
+  font-size: 11px;
   color: var(--text-dim);
 }
 
+.mode-switch {
+  margin-top: 6px;
+  padding: 3px 9px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: transparent;
+  color: var(--text-dim);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.mode-switch:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+/* --- Panels ------------------------------------------------------------------------------ */
+
 .panel {
-  width: 240px;
+  width: 232px;
   padding: 12px 14px;
   border: 1px solid var(--border);
-  border-radius: 6px;
+  border-radius: 4px;
   background: var(--panel);
   pointer-events: auto;
 }
@@ -86,21 +223,17 @@ body,
 .panel h2 {
   margin: 0 0 8px;
   font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  font-weight: 500;
+  letter-spacing: 0.14em;
   color: var(--text-dim);
 }
 
 .panel dl {
   display: grid;
-  grid-template-columns: 76px 1fr;
+  grid-template-columns: 70px 1fr;
   gap: 2px 8px;
   margin: 0;
-}
-
-.enemy-info dl {
-  margin-bottom: 8px;
+  font-size: 11px;
 }
 
 .panel dt {
@@ -109,109 +242,214 @@ body,
 
 .panel dd {
   margin: 0;
-  white-space: pre;
 }
 
-.panel label {
-  display: flex;
+/* --- Top left: the three pools ----------------------------------------------------------- */
+
+.hud {
+  top: 24px;
+  left: 30px;
+  width: 330px;
+  display: grid;
+  gap: 7px;
+}
+
+.vital {
+  display: grid;
+  grid-template-columns: 34px 1fr;
   align-items: center;
   gap: 8px;
-  cursor: pointer;
 }
 
-.controls {
-  left: 20px;
-  bottom: 20px;
-}
-
-.controls dl {
-  /* One row per control; each row lays out its own key and action. */
-  grid-template-columns: 1fr;
-  gap: 3px;
-  font-size: 11px;
-}
-
-.controls dl > div {
-  display: grid;
-  grid-template-columns: 92px 1fr;
-  gap: 8px;
-}
-
-.controls dt {
-  color: var(--cyan);
-}
-
-.controls dd {
-  white-space: normal;
+.vital-label {
+  font-size: 12px;
+  letter-spacing: 0.06em;
   color: var(--text-dim);
 }
 
-.combat-log {
-  right: 20px;
-  bottom: 20px;
-  width: 300px;
+.vital-bar {
+  position: relative;
+  height: 18px;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
 }
 
-.combat-log ol {
-  height: 168px;
+.vital-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.25s ease-out;
+}
+
+.vital-value {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  transform: translateY(-50%);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  text-shadow: 0 0 4px rgba(0, 0, 0, 0.9);
+}
+
+.bar {
+  height: 6px;
+  border-radius: 2px;
+  background: var(--track);
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+}
+
+.bar-hp {
+  background: linear-gradient(90deg, var(--hp-from), var(--hp-to));
+}
+
+.bar-ram {
+  background: linear-gradient(90deg, var(--ram-from), var(--ram-to));
+}
+
+.bar-qi {
+  background: linear-gradient(90deg, var(--qi-from), var(--qi-to));
+}
+
+.passives-panel {
+  top: 116px;
+  left: 30px;
+  width: 190px;
+  padding: 9px 11px;
+}
+
+.passives {
+  display: grid;
+  gap: 5px;
   margin: 0;
   padding: 0;
-  overflow-y: auto;
   list-style: none;
-  font-size: 11px;
-  line-height: 1.55;
-  scrollbar-width: thin;
-  scrollbar-color: var(--border) transparent;
-}
-
-.log-neutral {
-  color: var(--text-dim);
-}
-
-.log-player {
-  color: var(--text);
-}
-
-.log-good {
-  color: #4ade80;
-}
-
-.log-bad {
-  color: var(--hp);
-}
-
-.log-system {
-  margin-top: 3px;
-  color: var(--cyan);
-  letter-spacing: 0.08em;
-}
-
-.enemy-hint {
-  margin: -4px 0 8px;
   font-size: 11px;
   line-height: 1.4;
   color: var(--text-dim);
 }
 
-.enemy-info {
+.passives strong {
+  display: block;
+  color: var(--text);
+  font-weight: 600;
+}
+
+/* --- Top center: mode, whose turn, AP ---------------------------------------------------- */
+
+.turn-indicator {
   top: 16px;
-  right: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 5px;
+  white-space: nowrap;
+}
+
+.mode-title {
+  font-size: 12px;
+  letter-spacing: var(--display-spacing);
+  color: var(--accent);
+  opacity: 0.75;
+}
+
+.turn-indicator strong {
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.2em;
+}
+
+.turn-player strong {
+  color: var(--accent);
+}
+
+.turn-enemy strong {
+  color: var(--danger);
+}
+
+.turn-caption {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.ap-dots {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.ap-dot {
+  width: 15px;
+  height: 15px;
+  border: 2px solid var(--border-strong);
+  border-radius: 50%;
+}
+
+.ap-dot-filled {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow: 0 0 8px var(--accent-soft);
+}
+
+.ap-dot-banked {
+  border-color: var(--gold);
+}
+
+.ap-dot-banked.ap-dot-filled {
+  background: var(--gold);
+  box-shadow: none;
+}
+
+.ap-divider {
+  width: 1px;
+  height: 16px;
+  background: var(--border-strong);
+}
+
+/* --- Right: the target -------------------------------------------------------------------- */
+
+.enemy-info {
+  top: 104px;
+  right: 30px;
+  display: grid;
+  gap: 3px;
+  border-color: var(--danger);
 }
 
 .enemy-info h2 {
-  font-size: 14px;
+  margin: 0;
+}
+
+.enemy-name {
+  font-size: 16px;
+  font-weight: 600;
+  color: var(--danger);
+}
+
+.enemy-hint {
+  margin: 0 0 4px;
+  font-size: 11px;
+  line-height: 1.4;
+  color: var(--text-dim);
+}
+
+.field-label {
+  margin-top: 5px;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.field-label em {
+  float: right;
+  font-style: normal;
   color: var(--text);
-}
-
-.enemy-info .bar {
-  margin-bottom: 6px;
-}
-
-.break-indicator {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 10px;
 }
 
 .firewall-pips {
@@ -220,26 +458,43 @@ body,
 }
 
 .firewall-pip {
-  width: 12px;
-  height: 6px;
+  width: 22px;
+  height: 8px;
+  border: 1px solid var(--border-strong);
   border-radius: 1px;
-  background: #1e293b;
 }
 
 .firewall-pip-intact {
-  background: var(--cyan);
+  border-color: var(--danger);
+  background: var(--danger);
 }
 
-.weakness-tag {
-  font-size: 11px;
-  letter-spacing: 0.08em;
+.weakness-tag,
+.reaction {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+}
+
+.reaction {
+  color: var(--gold);
 }
 
 .breached-label {
-  font-size: 11px;
-  letter-spacing: 0.16em;
+  font-size: 12px;
+  letter-spacing: 0.18em;
   text-transform: uppercase;
   color: #fff;
+}
+
+.enemy-info dl {
+  margin: 8px 0 4px;
+  padding-top: 8px;
+  border-top: 1px solid var(--border);
+}
+
+.stance-aggressive {
+  color: var(--danger);
 }
 
 .action-button {
@@ -247,13 +502,14 @@ body,
   flex-direction: column;
   align-items: center;
   width: 100%;
+  margin-top: 4px;
   padding: 6px 10px;
   white-space: nowrap;
   border: 1px solid var(--virus);
-  border-radius: 4px;
+  border-radius: 3px;
   background: transparent;
   color: var(--virus);
-  font: inherit;
+  font-size: inherit;
   letter-spacing: 0.08em;
   text-transform: uppercase;
   cursor: pointer;
@@ -275,90 +531,279 @@ body,
   cursor: default;
 }
 
+.virus-used {
+  margin: 4px 0 0;
+  padding: 6px 10px;
+  border: 1px dashed var(--virus);
+  border-radius: 3px;
+  color: var(--virus);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  opacity: 0.75;
+}
+
 .hint {
   margin: 6px 0 0;
   font-size: 11px;
   color: var(--text-dim);
 }
 
-.turn-indicator {
-  top: 68px;
-  left: 20px;
-  width: 240px;
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  padding: 8px 14px;
-  border: 1px solid currentColor;
-  border-radius: 6px;
-  background: var(--panel);
-}
+/* --- Bottom left: what a click means ------------------------------------------------------ */
 
-.turn-indicator strong {
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-
-.turn-indicator span {
-  color: var(--text-dim);
-}
-
-.turn-player {
-  color: var(--cyan);
-}
-
-.turn-enemy {
-  color: var(--hp);
-}
-
-.hud {
-  top: 118px;
-  left: 20px;
+.action-bar {
+  bottom: 24px;
+  left: 30px;
   display: grid;
+  gap: 10px;
+}
+
+.action-modes {
+  display: flex;
   gap: 8px;
 }
 
-.hack-button,
-.end-turn {
-  padding: 6px 0;
-  border: 1px solid var(--cyan);
-  border-radius: 4px;
-  background: transparent;
-  color: var(--cyan);
-  font: inherit;
-  letter-spacing: 0.12em;
-  text-transform: uppercase;
-  cursor: pointer;
-}
-
-.hack-button:hover:not(:disabled),
-.end-turn:hover:not(:disabled),
-.hack-button-active {
-  background: rgba(34, 211, 238, 0.14);
-}
-
-.hack-button:disabled,
-.end-turn:disabled {
-  border-color: var(--border);
+.mode-button {
+  min-width: 58px;
+  padding: 5px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+  background: rgba(0, 0, 0, 0.25);
   color: var(--text-dim);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.mode-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.mode-button-active {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.mode-button:disabled {
+  opacity: 0.45;
   cursor: default;
 }
 
-.hack-button {
-  margin-top: 4px;
+.help-button {
+  min-width: 0;
 }
 
-.hack-button kbd,
-.end-turn kbd,
-.try-again kbd {
-  margin-left: 6px;
-  padding: 0 5px;
-  border: 1px solid currentColor;
-  border-radius: 3px;
-  font: inherit;
-  font-size: 10px;
-  opacity: 0.7;
+.controls {
+  width: 300px;
 }
+
+.controls dl {
+  /* One row per control; each row lays out its own key and action. */
+  grid-template-columns: 1fr;
+  gap: 3px;
+}
+
+.controls dl > div {
+  display: grid;
+  grid-template-columns: 96px 1fr;
+  gap: 8px;
+}
+
+.controls dt {
+  color: var(--accent);
+}
+
+.controls dd {
+  color: var(--text-dim);
+}
+
+/* --- Bottom right: what just happened ----------------------------------------------------- */
+
+.combat-log {
+  right: 30px;
+  bottom: 22px;
+  width: 300px;
+  pointer-events: auto;
+}
+
+.combat-log ol {
+  display: flex;
+  flex-direction: column;
+  height: 132px;
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  list-style: none;
+  font-size: 11px;
+  line-height: 1.6;
+  scrollbar-width: none;
+  /* Older lines fade out toward the top, as if receding. */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 55%);
+}
+
+/* A short log hugs the bottom, where the newest line always is. */
+.combat-log li:first-child {
+  margin-top: auto;
+}
+
+.log-neutral {
+  color: var(--text-dim);
+}
+
+.log-player {
+  color: var(--accent);
+}
+
+.log-good {
+  color: var(--gold);
+}
+
+.log-bad {
+  color: var(--danger);
+}
+
+.log-system {
+  color: var(--text-dim);
+  letter-spacing: 0.1em;
+  opacity: 0.8;
+}
+
+/* --- Bottom center: the hand -------------------------------------------------------------- */
+
+/* The hand sits above the bottom row, which belongs to the action modes and the log. */
+.spell-bar {
+  bottom: 66px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 16px;
+}
+
+.spell-bar-hint {
+  margin: 0;
+  white-space: nowrap;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.spell-cards {
+  display: flex;
+  gap: 12px;
+}
+
+.spell-card {
+  position: relative;
+  display: grid;
+  align-content: start;
+  gap: 3px;
+  width: 196px;
+  min-height: 96px;
+  padding: 12px 13px 10px;
+  border: 1px solid var(--border-strong);
+  border-radius: 5px;
+  background: var(--panel);
+  color: var(--text);
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+  transition:
+    transform 0.12s,
+    border-color 0.12s;
+}
+
+.spell-card:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.spell-card-selected {
+  border-color: var(--accent);
+  box-shadow:
+    0 0 0 1px var(--accent),
+    0 0 18px var(--accent-soft);
+  transform: translateY(-6px);
+}
+
+.spell-card:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* The AP cost rides on the card's top edge, like a tab. */
+.spell-card-ap {
+  position: absolute;
+  top: -10px;
+  right: 10px;
+  padding: 0 8px;
+  border-radius: 3px;
+  background: var(--border-strong);
+  color: var(--text);
+  font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
+  font-size: 11px;
+  line-height: 18px;
+}
+
+.spell-card-selected .spell-card-ap {
+  background: var(--accent);
+  color: var(--accent-ink);
+}
+
+.spell-card-head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+}
+
+.spell-card-head strong {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+.spell-card-selected .spell-card-head strong {
+  color: var(--accent);
+}
+
+.spell-card-effect {
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.spell-card-foot {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 2px;
+}
+
+.spell-card-cost {
+  font-size: 13px;
+  color: var(--accent);
+}
+
+.spell-card-tag {
+  font-size: 10px;
+  font-style: normal;
+  letter-spacing: 0.1em;
+  color: var(--tag);
+}
+
+.spell-card-modifier {
+  justify-self: start;
+  margin-top: 3px;
+  padding: 0 6px;
+  border-radius: 2px;
+  background: rgba(227, 179, 65, 0.12);
+  color: var(--gold);
+  font-size: 10px;
+  line-height: 16px;
+}
+
+/* --- Menus and end screens ---------------------------------------------------------------- */
 
 .action-menu {
   width: 232px;
@@ -384,7 +829,7 @@ body,
 }
 
 .menu-option:hover:not(:disabled) {
-  border-color: var(--cyan);
+  border-color: var(--accent);
   background: rgba(34, 211, 238, 0.1);
 }
 
@@ -405,7 +850,7 @@ body,
 .menu-option em {
   font-size: 11px;
   font-style: normal;
-  color: var(--cyan);
+  color: var(--accent);
 }
 
 .game-over {
@@ -477,199 +922,11 @@ body,
 }
 
 .game-over-victory {
-  color: var(--cyan);
+  color: var(--accent);
 }
 
 .game-over-defeat {
-  color: var(--hp);
-}
-
-.hud-row {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.hud-row .bar {
-  flex: 1;
-}
-
-.hud-label {
-  width: 28px;
-  color: var(--text-dim);
-}
-
-.hud-value {
-  min-width: 52px;
-  text-align: right;
-}
-
-.ap-dots {
-  display: flex;
-  gap: 6px;
-}
-
-.ap-dot {
-  width: 12px;
-  height: 12px;
-  border: 2px solid var(--cyan);
-  border-radius: 50%;
-}
-
-.ap-dot-filled {
-  background: var(--cyan);
-}
-
-.ap-dot-banked {
-  border-color: var(--gold);
-}
-
-.ap-dot-banked.ap-dot-filled {
-  background: var(--gold);
-}
-
-.bar {
-  height: 6px;
-  border-radius: 3px;
-  background: #1e293b;
-  overflow: hidden;
-}
-
-.bar-fill {
-  height: 100%;
-}
-
-.bar-hp {
-  background: linear-gradient(90deg, #b91c1c, var(--hp));
-}
-
-.bar-ram {
-  background: linear-gradient(90deg, #0891b2, var(--cyan));
-}
-
-.bar-qi {
-  background: linear-gradient(90deg, #ca8a04, var(--gold));
-}
-
-.passives {
-  display: grid;
-  gap: 4px;
-  margin: 2px 0 0;
-  padding: 8px 0 0;
-  border-top: 1px solid var(--border);
-  list-style: none;
-  font-size: 11px;
-  color: var(--text-dim);
-}
-
-.passives strong {
-  color: var(--text);
-  font-weight: 600;
-}
-
-.spell-bar {
-  bottom: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: grid;
-  justify-items: center;
-  gap: 6px;
-}
-
-.spell-bar-hint {
-  margin: 0;
-  white-space: nowrap;
-  font-size: 11px;
-  letter-spacing: 0.06em;
-  color: var(--text-dim);
-}
-
-.spell-cards {
-  display: flex;
-  gap: 10px;
-}
-
-.spell-card {
-  display: grid;
-  align-content: start;
-  gap: 2px;
-  width: 178px;
-  min-height: 100px;
-  padding: 8px 10px 9px;
-  border: 1px solid var(--border);
-  border-top: 3px solid var(--tag);
-  border-radius: 6px;
-  background: var(--panel);
-  color: var(--text);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-  pointer-events: auto;
-}
-
-.spell-card:hover:not(:disabled) {
-  border-color: var(--tag);
-}
-
-.spell-card-selected {
-  border-color: var(--tag);
-  box-shadow: 0 0 0 1px var(--tag);
-  transform: translateY(-6px);
-}
-
-.spell-card:disabled {
-  opacity: 0.45;
-  cursor: default;
-}
-
-.spell-card-head {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.spell-card-head strong {
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.spell-card kbd {
-  padding: 0 5px;
-  border: 1px solid var(--border);
-  border-radius: 3px;
-  font: inherit;
-  font-size: 10px;
-  color: var(--text-dim);
-}
-
-.spell-card-name {
-  font-size: 11px;
-  color: var(--text-dim);
-}
-
-.spell-card-name em {
-  font-style: normal;
-  color: var(--tag);
-}
-
-.spell-card-effect {
-  margin-top: 2px;
-  font-size: 12px;
-}
-
-.spell-card-cost {
-  font-size: 11px;
-  color: var(--cyan);
-}
-
-.spell-card-modifier {
-  margin-top: 3px;
-  padding-top: 4px;
-  border-top: 1px dashed var(--border);
-  font-size: 10px;
-  line-height: 1.35;
-  color: var(--gold);
+  color: var(--danger);
 }
 
 .loadout {
@@ -688,7 +945,7 @@ body,
 .loadout header h2 {
   margin-bottom: 4px;
   font-size: 14px;
-  color: var(--cyan);
+  color: var(--accent);
 }
 
 .loadout header p {
@@ -773,7 +1030,7 @@ body,
 
 .loadout-effect span,
 .loadout-pool span {
-  color: var(--cyan);
+  color: var(--accent);
 }
 
 .loadout-pool {
@@ -828,10 +1085,10 @@ body,
 
 .start-combat {
   padding: 8px 26px;
-  border: 1px solid var(--cyan);
+  border: 1px solid var(--accent);
   border-radius: 4px;
   background: rgba(34, 211, 238, 0.12);
-  color: var(--cyan);
+  color: var(--accent);
   font: inherit;
   letter-spacing: 0.16em;
   text-transform: uppercase;
@@ -847,20 +1104,4 @@ body,
   background: transparent;
   color: var(--text-dim);
   cursor: default;
-}
-
-.stance-aggressive {
-  color: var(--hp);
-}
-
-.virus-used {
-  margin: 0;
-  padding: 6px 10px;
-  border: 1px dashed var(--virus);
-  border-radius: 4px;
-  color: var(--virus);
-  letter-spacing: 0.08em;
-  text-align: center;
-  text-transform: uppercase;
-  opacity: 0.75;
 }
