@@ -33,6 +33,26 @@ export interface Enemy extends Entity {
   moveRange: number;
   /** One line telling the player how this enemy behaves. */
   hint: string;
+  /**
+   * For an enemy that holds its ground until provoked: what it takes to make
+   * it advance, and how it moves once it does. Null for enemies without this.
+   */
+  aggro: AggroRule | null;
+  /** Damaging hits taken from beyond melee range since it last settled back into its guard. */
+  timesHitFromRange: number;
+  /** It has been provoked and is advancing on the player. */
+  aggressive: boolean;
+}
+
+export interface AggroRule {
+  /** Ranged hits it takes before it advances. */
+  afterRangedHits: number;
+  /** Its turn-order speed while advancing. */
+  speed: number;
+  /** Hexes it moves per turn while advancing. */
+  moveRange: number;
+  /** Its turn-order speed while holding position, to go back to. */
+  guardSpeed: number;
 }
 
 interface EnemyDefinition {
@@ -45,6 +65,9 @@ interface EnemyDefinition {
   moveRange: number;
   attack: { type: string; damage: number; range: number };
   hint: string;
+  aggroAfterRangedHits?: number;
+  aggressiveSpeed?: number;
+  aggressiveMoveRange?: number;
 }
 
 const DEFINITIONS: Record<string, EnemyDefinition> = enemiesJson;
@@ -75,7 +98,29 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
     attackRange: definition.attack.range,
     moveRange: definition.moveRange,
     hint: definition.hint,
+    aggro:
+      definition.aggroAfterRangedHits === undefined
+        ? null
+        : {
+            afterRangedHits: definition.aggroAfterRangedHits,
+            speed: definition.aggressiveSpeed ?? definition.speed,
+            moveRange: definition.aggressiveMoveRange ?? 1,
+            guardSpeed: definition.speed,
+          },
+    timesHitFromRange: 0,
+    aggressive: false,
   };
+}
+
+/** Hexes the enemy may move this turn: more than usual for one that has been provoked into advancing. */
+export function moveRangeOf(enemy: Enemy): number {
+  return enemy.aggressive && enemy.aggro ? enemy.aggro.moveRange : enemy.moveRange;
+}
+
+/** What to call the enemy's current behavior, for display. */
+export function stanceOf(enemy: Enemy): string {
+  if (enemy.behaviorType === 'guard') return enemy.aggressive ? 'Aggressive' : 'Guard';
+  return enemy.behaviorType === 'patrol' ? 'Hunter' : 'Erratic';
 }
 
 /** Whether `target` is within the enemy's reach from `from`. Says nothing about what is in between. */

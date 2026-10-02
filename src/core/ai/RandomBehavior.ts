@@ -1,4 +1,4 @@
-import { canHitFrom, inAttackRange } from '../entities/Enemy';
+import { canHitFrom, inAttackRange, moveRangeOf } from '../entities/Enemy';
 import type { HexCoord } from '../hex/HexCoord';
 import type { Behavior, EnemyAction } from './EnemyAI';
 
@@ -22,13 +22,13 @@ export const randomBehavior: Behavior = (enemy, { grid, player, rng }) => {
     return true;
   };
 
-  for (let moved = 0; moved < enemy.moveRange; moved++) {
+  for (let moved = 0; moved < moveRangeOf(enemy); moved++) {
     if (!step(pick(freeNeighbors()))) break;
   }
 
   const sightBlocked = inAttackRange(enemy, position, player.position) && !canFireFrom(position);
   // A ghost that cannot move this turn (slowed) cannot reposition either.
-  if (sightBlocked && enemy.moveRange > 0) {
+  if (sightBlocked && moveRangeOf(enemy) > 0) {
     const options = freeNeighbors();
     const withClearShot = options.filter(canFireFrom);
     step(pick(withClearShot.length > 0 ? withClearShot : options));

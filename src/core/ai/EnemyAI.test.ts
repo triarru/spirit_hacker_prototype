@@ -221,3 +221,147 @@ describe('Ghost Process and line of sight', () => {
     expect(combat.castSpell(0, at(3, 4)).map((event) => event.type)).toContain('stunned');
   });
 });
+
+describe('Guardian: guard and aggressive modes', () => {
+  /** Player at the bottom of a clear column, a guardian `gap` hexes straight above. */
+  function standoff(gap: number, programs: string[] = ['nmap_scan', 'ping_flood']) {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 7), enemies: [['guardian', at(3, 7 - gap)]] }),
+      () => 0.999,
+      new SpellDeck({
+        actives: programs.map((id) => ({ program: getProgram(id), modifier: null })),
+        passives: [],
+        handSize: programs.length,
+      }),
+    );
+    const [guardian] = combat.enemies;
+    if (!guardian) throw new Error('guardian missing');
+    guardian.hp = guardian.maxHp = 500;
+    return { combat, guardian };
+  }
+  const passTurn = (combat: CombatManager) => {
+    combat.player.ap = 0;
+    combat.endPlayerTurn();
+    return runEnemyPhase(combat);
+  };
+  const stances = (events: Array<{ type: string; stance?: string }>) =>
+    events.filter((event) => event.type === 'stanceShifted').map((event) => event.stance);
+
+  it('guard mode: it does not move, however long the player keeps away', () => {
+    const { combat, guardian } = standoff(4);
+    for (let turn = 0; turn < 5; turn++) passTurn(combat);
+
+    expect(guardian.position.equals(at(3, 3))).toBe(true);
+    expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
+  });
+
+  it('one hit from range: a warning, but it stays in guard mode and stays put', () => {
+    const { combat, guardian } = standoff(4);
+
+    const events = combat.castSpell(0, guardian.position);
+
+    expect(stances(events)).toEqual(['wary']);
+    expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 1]);
+    passTurn(combat);
+    expect(guardian.position.equals(at(3, 3))).toBe(true);
+  });
+
+  it('two hits from range: it turns aggressive', () => {
+    const { combat, guardian } = standoff(3);
+
+    combat.castSpell(0, guardian.position);
+    const events = combat.castSpell(1, guardian.position);
+
+    expect(stances(events)).toEqual(['aggressive']);
+    expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([true, 2]);
+  });
+
+  it('aggressive: it advances one hex a turn toward the player', () => {
+    const { combat, guardian } = standoff(3);
+    combat.castSpell(0, guardian.position);
+    combat.castSpell(1, guardian.position);
+
+    passTurn(combat);
+    expect(guardian.position.equals(at(3, 5))).toBe(true);
+    expect(guardian.position.distance(combat.player.position)).toBe(2);
+    expect(guardian.aggressive).toBe(true);
+  });
+
+  it('reaching melee: it strikes, then goes back to guard mode where it stands', () => {
+    const { combat, guardian } = standoff(3);
+    combat.castSpell(0, guardian.position);
+    combat.castSpell(1, guardian.position);
+    passTurn(combat);
+
+    // Second turn of the advance: one more step brings it adjacent, and it attacks.
+    const events = passTurn(combat);
+    expect(guardian.position.equals(at(3, 6))).toBe(true);
+    expect(combat.player.hp).toBe(combat.player.maxHp - guardian.attackDamage);
+    expect(stances(events)).toEqual(['guard']);
+    expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
+
+    // Back on guard: when the player walks away, it does not follow.
+    combat.grid.moveEntity(combat.player, at(3, 8));
+    combat.grid.moveEntity(combat.player, at(0, 8));
+    passTurn(combat);
+    expect(guardian.position.equals(at(3, 6))).toBe(true);
+  });
+
+  it('can be provoked again after it has settled', () => {
+    const { combat, guardian } = standoff(3);
+    combat.castSpell(0, guardian.position);
+    combat.castSpell(1, guardian.position);
+    passTurn(combat);
+    passTurn(combat);
+    expect(guardian.aggressive).toBe(false);
+
+    combat.grid.moveEntity(combat.player, at(3, 8));
+    expect(stances(combat.castSpell(0, guardian.position))).toEqual(['wary']);
+  });
+
+  it('a melee hit does not count as a hit from range', () => {
+    const { combat, guardian } = standoff(1);
+
+    expect(stances(combat.playerAttack(guardian.id))).toEqual([]);
+    expect(stances(combat.playerAttack(guardian.id))).toEqual([]);
+    expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
+  });
+
+  it('a hit that does no damage does not count', () => {
+    const { combat, guardian } = standoff(2, ['tran_yem']);
+
+    expect(combat.castSpell(0, guardian.position).map((event) => event.type)).toEqual(['spellCast', 'stunned']);
+    expect(guardian.timesHitFromRange).toBe(0);
+  });
+
+  it('turret shots do not count: a turret is not an entity', () => {
+    const { combat, guardian } = standoff(4);
+    combat.grid.setTerrain(at(2, 4), 'TERMINAL');
+    combat.grid.moveEntity(combat.player, at(2, 6));
+    combat.hack(at(2, 4), 'TURRET');
+
+    for (let turn = 0; turn < 3; turn++) passTurn(combat);
+
+    expect(guardian.hp).toBeLessThan(guardian.maxHp);
+    expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
+    expect(guardian.position.equals(at(3, 3))).toBe(true);
+  });
+
+  it('other enemy types are never provoked', () => {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 7), enemies: [['crawler', at(3, 4)]] }),
+      () => 0.999,
+      new SpellDeck({
+        actives: ['nmap_scan', 'ping_flood'].map((id) => ({ program: getProgram(id), modifier: null })),
+        passives: [],
+        handSize: 2,
+      }),
+    );
+    const [crawler] = combat.enemies;
+    if (!crawler) throw new Error('crawler missing');
+    crawler.hp = crawler.maxHp = 500;
+
+    expect(stances([...combat.castSpell(0, crawler.position), ...combat.castSpell(1, crawler.position)])).toEqual([]);
+    expect(crawler.aggro).toBeNull();
+  });
+});

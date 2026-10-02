@@ -1,4 +1,4 @@
-import { canHitFrom } from '../entities/Enemy';
+import { canHitFrom, moveRangeOf } from '../entities/Enemy';
 import type { HexCoord } from '../hex/HexCoord';
 import type { HexGrid } from '../hex/HexGrid';
 import { findPath } from '../hex/HexPathfinding';
@@ -17,14 +17,14 @@ function pathToward(grid: HexGrid, from: HexCoord, target: HexCoord): HexCoord[]
   return best;
 }
 
-/** Crawler: closes in on the player, and attacks as soon as they are within reach. */
+/** Crawler (and a provoked Guardian): closes in on the player, and attacks as soon as they are within reach. */
 export const patrolBehavior: Behavior = (enemy, { grid, player }) => {
   const actions: EnemyAction[] = [];
   let position = enemy.position;
 
   if (!canHitFrom(grid, enemy, position, player.position)) {
     const path = pathToward(grid, position, player.position);
-    for (const step of path.slice(1, 1 + enemy.moveRange)) {
+    for (const step of path.slice(1, 1 + moveRangeOf(enemy))) {
       actions.push({ type: 'move', to: step });
       position = step;
       if (canHitFrom(grid, enemy, position, player.position)) break;

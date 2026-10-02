@@ -78,6 +78,17 @@ export type CombatEvent =
   | { type: 'trapTriggered'; entityId: string; at: HexCoord }
   | { type: 'slowed'; entityId: string; at: HexCoord; turns: number }
   | {
+      /**
+       * An enemy that holds its ground reacted to being hit from range: 'wary'
+       * is the warning before it moves, 'aggressive' is it leaving its post,
+       * 'guard' is it settling back once it has reached the player.
+       */
+      type: 'stanceShifted';
+      entityId: string;
+      at: HexCoord;
+      stance: 'wary' | 'aggressive' | 'guard';
+    }
+  | {
       /** The player turned a breached enemy on one of its allies. */
       type: 'virusInjected';
       entityId: string;
@@ -235,7 +246,10 @@ export class CombatManager {
 
     this.player.ap -= PLAYER_DATA.basicAttack.apCost;
     const damage = PLAYER_DATA.basicAttack.damage + this.deck.bonuses.basicAttackDamage;
-    return [...this.hitEnemy(this.player.id, enemy, damage, null), ...this.checkEnd()];
+    return [
+      ...this.hitEnemy(this.player.id, enemy, damage, null, 0, this.player.position),
+      ...this.checkEnd(),
+    ];
   }
 
   // --- Programs ------------------------------------------------------------
@@ -291,7 +305,9 @@ export class CombatManager {
     ];
 
     for (const enemy of plan.enemies) {
-      events.push(...this.hitEnemy(this.player.id, enemy, spec.damage, program.tag, spec.firewallBonus));
+      events.push(
+        ...this.hitEnemy(this.player.id, enemy, spec.damage, program.tag, spec.firewallBonus, this.player.position),
+      );
       const survived = this.enemies.includes(enemy);
       if (survived && plan.stunTurns > 0) {
         enemy.stunTurns = Math.max(enemy.stunTurns, plan.stunTurns);
@@ -326,7 +342,7 @@ export class CombatManager {
     this.player.ram -= BREAK_RULES.injectVirus.ramCost;
     return [
       { type: 'virusInjected', entityId: enemy.id, targetId: target.id, at: enemy.position },
-      ...this.hitEnemy(enemy.id, target, enemy.attackDamage, null),
+      ...this.hitEnemy(enemy.id, target, enemy.attackDamage, null, 0, enemy.position),
       ...this.checkEnd(),
     ];
   }
@@ -445,9 +461,14 @@ export class CombatManager {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN' || this.skipping.has(enemyId)) return [];
 
-    // The AI plans with the enemy as it is this turn: a slowed one covers one hex less.
-    const acting = this.slowed.has(enemyId)
-      ? { ...enemy, moveRange: Math.max(0, enemy.moveRange - 1) }
+    // The AI plans with the enemy as it is this turn: a slowed one covers one hex less,
+    // whichever of its move ranges is in use.
+    const acting: Enemy = this.slowed.has(enemyId)
+      ? {
+          ...enemy,
+          moveRange: Math.max(0, enemy.moveRange - 1),
+          aggro: enemy.aggro && { ...enemy.aggro, moveRange: Math.max(0, enemy.aggro.moveRange - 1) },
+        }
       : enemy;
     return planEnemyTurn(acting, { grid: this.grid, player: this.player, rng: this.rng });
   }
@@ -490,7 +511,15 @@ export class CombatManager {
     }
 
     if (!canHitFrom(this.grid, enemy, enemy.position, this.player.position)) return [];
-    return [...this.enemyAttack(enemy, defense), ...this.checkEnd()];
+    const events = this.enemyAttack(enemy, defense);
+    // It came for the player and got its strike in: it settles back into its guard where it stands.
+    if (enemy.aggressive && enemy.aggro) {
+      enemy.aggressive = false;
+      enemy.timesHitFromRange = 0;
+      enemy.speed = enemy.aggro.guardSpeed;
+      events.push({ type: 'stanceShifted', entityId: enemy.id, at: enemy.position, stance: 'guard' });
+    }
+    return [...events, ...this.checkEnd()];
   }
 
   /**
@@ -621,6 +650,8 @@ export class CombatManager {
    * One hit on an enemy: damage (amplified if it is breached), then firewall.
    * `tag` is the hit's spell tag, or null for an untagged hit like the basic
    * attack. A hit with no damage (a pure stun, say) still strips firewall.
+   * `from` is where the attacking entity stands, or null when the hit comes
+   * from the environment (a turret, a trap) rather than from an entity.
    */
   private hitEnemy(
     attackerId: string,
@@ -628,6 +659,7 @@ export class CombatManager {
     baseDamage: number,
     tag: SpellTag | null,
     firewallBonus = 0,
+    from: HexCoord | null = null,
   ): CombatEvent[] {
     const at = enemy.position;
     const events: CombatEvent[] = [];
@@ -651,12 +683,31 @@ export class CombatManager {
         this.removeEnemy(enemy);
         return events;
       }
+      events.push(...this.provoke(enemy, from));
     }
 
     if (damageFirewall(enemy, firewallDamage)) {
       events.push({ type: 'breached', entityId: enemy.id, at });
     }
     return events;
+  }
+
+  /**
+   * Counts a damaging hit that came from beyond melee range against an enemy
+   * that holds its ground, and sends it after the player once it has had enough.
+   */
+  private provoke(enemy: Enemy, from: HexCoord | null): CombatEvent[] {
+    if (!enemy.aggro || enemy.aggressive || !from || from.distance(enemy.position) <= 1) return [];
+
+    enemy.timesHitFromRange += 1;
+    const remaining = enemy.aggro.afterRangedHits - enemy.timesHitFromRange;
+    if (remaining > 1) return [];
+    if (remaining === 1) {
+      return [{ type: 'stanceShifted', entityId: enemy.id, at: enemy.position, stance: 'wary' }];
+    }
+    enemy.aggressive = true;
+    enemy.speed = enemy.aggro.speed;
+    return [{ type: 'stanceShifted', entityId: enemy.id, at: enemy.position, stance: 'aggressive' }];
   }
 
   /** Damage a hit of `baseDamage` does to this enemy right now. */

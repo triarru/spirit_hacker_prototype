@@ -157,3 +157,17 @@ describe('describeEvents: traps', () => {
     ).toEqual(['Crawler triggers trap! 15 damage.', 'Crawler destroyed']);
   });
 });
+
+describe('describeEvents: guardian stance', () => {
+  const shifted = (stance: 'wary' | 'aggressive' | 'guard'): CombatEvent => ({
+    type: 'stanceShifted', entityId: 'guardian_1', at: hex, stance,
+  });
+
+  it('warns after the first hit from range and announces the advance, as in the patch notes', () => {
+    expect(text([shifted('wary')])).toEqual([
+      'Guardian shifts stance — one more hit from range and it will advance.',
+    ]);
+    expect(text([shifted('aggressive')])).toEqual(['Guardian breaks position!']);
+    expect(text([shifted('guard')])).toEqual(['Guardian settles back into its guard.']);
+  });
+});

@@ -1,4 +1,5 @@
 import { BREAK_RULES } from '../core/combat/BreakSystem';
+import { stanceOf } from '../core/entities/Enemy';
 import { useCombatStore } from '../stores/useCombatStore';
 import { selectFocusedEnemyId, useUIStore } from '../stores/useUIStore';
 import { BreakIndicator } from './BreakIndicator';
@@ -38,6 +39,8 @@ export function EnemyInfo() {
         <dd>
           {enemy.hp} / {enemy.maxHp}
         </dd>
+        <dt>Behavior</dt>
+        <dd className={enemy.aggressive ? 'stance-aggressive' : undefined}>{stanceOf(enemy)}</dd>
         <dt>Attack</dt>
         <dd>
           {enemy.attackDamage} {enemy.attackType}

@@ -27,7 +27,10 @@
       "damage": 15,
       "range": 1
     },
-    "hint": "Never leaves its post. Hits hard if you stand next to it."
+    "hint": "Holds its post and hits hard up close. Hit it from range twice and it comes after you.",
+    "aggroAfterRangedHits": 2,
+    "aggressiveSpeed": 2,
+    "aggressiveMoveRange": 1
   },
   "ghost_process": {
     "name": "Ghost Process",

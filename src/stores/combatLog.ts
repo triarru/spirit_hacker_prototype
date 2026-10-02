@@ -108,6 +108,20 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
       case 'slowed':
         lines.push({ tone: 'good', text: `${nameOf(event.entityId)} is slowed (${turns(event.turns)})` });
         break;
+      case 'stanceShifted': {
+        const name = nameOf(event.entityId);
+        if (event.stance === 'wary') {
+          lines.push({
+            tone: 'bad',
+            text: `${name} shifts stance — one more hit from range and it will advance.`,
+          });
+        } else if (event.stance === 'aggressive') {
+          lines.push({ tone: 'bad', text: `${name} breaks position!` });
+        } else {
+          lines.push({ tone: 'neutral', text: `${name} settles back into its guard.` });
+        }
+        break;
+      }
       case 'healed':
         lines.push({ tone: 'good', text: `${nameOf(event.entityId)} recovers ${event.amount} HP` });
         break;

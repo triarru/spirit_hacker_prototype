@@ -190,8 +190,10 @@ describe('inject virus', () => {
     expect(guardian.firewallCurrent).toBe(guardian.firewallMax - BREAK_RULES.normalHitFirewallDamage);
     expect(ghost.hp).toBe(ghost.maxHp);
     expect(crawler.hp).toBe(crawler.maxHp);
-    expect(events.map((event) => event.type)).toEqual(['virusInjected', 'attacked']);
+    // The crawler is 2 hexes from the guardian, so this also counts as a hit from range against it.
+    expect(events.map((event) => event.type)).toEqual(['virusInjected', 'attacked', 'stanceShifted']);
     expect(events[1]).toMatchObject({ attackerId: crawler.id, targetId: guardian.id });
+    expect(guardian.timesHitFromRange).toBe(1);
   });
 
   it('needs enough AP and enough RAM', () => {

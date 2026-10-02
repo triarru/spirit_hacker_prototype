@@ -120,6 +120,12 @@ export class EffectRenderer {
         case 'slowed':
           spawn(event.at, 'SLOWED', COLOR.trap, CALLOUT_FONT_SIZE);
           break;
+        case 'stanceShifted':
+          if (event.stance === 'wary') spawn(event.at, 'ALERT', COLOR.good, CALLOUT_FONT_SIZE);
+          if (event.stance === 'aggressive') {
+            spawn(event.at, 'BREAKS POSITION!', COLOR.damageToPlayer, CALLOUT_FONT_SIZE);
+          }
+          break;
         case 'recovered':
           spawn(event.at, 'FIREWALL RESTORED', COLOR.muted, CALLOUT_FONT_SIZE);
           break;
