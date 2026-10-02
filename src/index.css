@@ -1,8 +1,13 @@
 :root {
   --bg: #0b0f17;
+  --panel: rgba(13, 18, 28, 0.88);
+  --border: #1f2a3a;
   --text: #cbd5e1;
   --text-dim: #64748b;
   --cyan: #22d3ee;
+  --move: #22c55e;
+  --spell: #f97316;
+  --hp: #ef4444;
 
   color-scheme: dark;
   font-family: ui-monospace, 'SF Mono', Menlo, Consolas, monospace;
@@ -66,4 +71,90 @@ body,
 
 .title span {
   color: var(--text-dim);
+}
+
+.panel {
+  width: 240px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--panel);
+  pointer-events: auto;
+}
+
+.panel h2 {
+  margin: 0 0 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.panel dl {
+  display: grid;
+  grid-template-columns: 76px 1fr;
+  gap: 2px 8px;
+  margin: 0 0 8px;
+}
+
+.panel dt {
+  color: var(--text-dim);
+}
+
+.panel dd {
+  margin: 0;
+  white-space: pre;
+}
+
+.panel label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.debug-panel {
+  left: 20px;
+  bottom: 20px;
+}
+
+.enemy-info {
+  top: 16px;
+  right: 20px;
+}
+
+.enemy-info h2 {
+  font-size: 14px;
+  color: var(--text);
+}
+
+.swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+}
+
+.swatch-move {
+  background: var(--move);
+}
+
+.swatch-spell {
+  background: var(--spell);
+}
+
+.bar {
+  height: 6px;
+  margin-bottom: 10px;
+  border-radius: 3px;
+  background: #1e293b;
+  overflow: hidden;
+}
+
+.bar-fill {
+  height: 100%;
+}
+
+.bar-hp {
+  background: var(--hp);
 }

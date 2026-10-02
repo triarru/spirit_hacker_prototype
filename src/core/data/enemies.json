@@ -1,0 +1,5 @@
+{
+  "crawler": { "name": "Crawler", "maxHp": 30, "speed": 4 },
+  "guardian": { "name": "Guardian", "maxHp": 50, "speed": 2 },
+  "ghost_process": { "name": "Ghost Process", "maxHp": 20, "speed": 6 }
+}
