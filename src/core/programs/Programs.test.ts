@@ -78,6 +78,15 @@ describe('modifiers', () => {
     expect(modify('addHeal', 5).effects).toEqual([...host.effects, { type: 'heal', amount: 5 }]);
   });
 
+  it('addFirewallDamage does nothing for a host spell that deals no damage', () => {
+    const fn = MODIFIERS.addFirewallDamage;
+    if (!fn) throw new Error('no modifier addFirewallDamage');
+    const harmless: ActiveSpec = { ...host, damage: 0 };
+
+    expect(fn(harmless, 1)).toEqual(harmless);
+    expect(fn({ ...host, damage: 1 }, 1).firewallBonus).toBe(1);
+  });
+
   it('reduceCost lowers RAM and Qi but never below zero', () => {
     expect(modify('reduceCost', 4)).toEqual({ ...host, ramCost: 0, qiCost: 6 });
   });

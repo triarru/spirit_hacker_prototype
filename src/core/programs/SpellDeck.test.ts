@@ -223,7 +223,8 @@ describe('the LOADOUT phase', () => {
     const combat = waiting();
     combat.startCombat(buildDeck(selection));
 
-    expect(combat.deck.specOf(0)).toMatchObject({ firewallBonus: 1 });
+    // nmap_scan deals no damage, so tran_yem under it adds no firewall bar.
+    expect(combat.deck.specOf(0)).toMatchObject({ range: 4, firewallBonus: 0 });
     expect(combat.deck.bonuses.basicAttackDamage).toBe(5);
   });
 

@@ -316,6 +316,47 @@ describe('program tags against the crawler (weak to SHOCK)', () => {
     expect(events.map((event) => event.type)).toEqual(['spellCast', 'breached']);
   });
 
+  it('nmap_scan with tran_yem under it strips no more than nmap_scan alone', () => {
+    const stripped = (modifier: string | null) => {
+      const combat = new CombatManager(
+        makeRoom({ player: at(3, 4), enemies: [['guardian', at(3, 2)]] }),
+        NEVER_DODGE,
+        new SpellDeck({
+          actives: [{ program: getProgram('nmap_scan'), modifier: modifier ? getProgram(modifier) : null }],
+          passives: [],
+          handSize: 1,
+        }),
+      );
+      const [guardian] = combat.enemies;
+      if (!guardian) throw new Error('guardian missing');
+      expect(combat.previewSpell(0, guardian.position)?.hits[0]?.firewallDamage).toBe(
+        BREAK_RULES.normalHitFirewallDamage,
+      );
+      combat.castSpell(0, guardian.position);
+      return guardian.firewallMax - guardian.firewallCurrent;
+    };
+
+    expect(stripped('tran_yem')).toBe(BREAK_RULES.normalHitFirewallDamage);
+    expect(stripped('tran_yem')).toBe(stripped(null));
+  });
+
+  it('a damaging spell with tran_yem under it does strip the extra bar', () => {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 4), enemies: [['guardian', at(3, 3)]] }),
+      NEVER_DODGE,
+      new SpellDeck({
+        actives: [{ program: getProgram('brute_force'), modifier: getProgram('tran_yem') }],
+        passives: [],
+        handSize: 1,
+      }),
+    );
+    const [guardian] = combat.enemies;
+    if (!guardian) throw new Error('guardian missing');
+    combat.castSpell(0, guardian.position);
+
+    expect(guardian.firewallCurrent).toBe(guardian.firewallMax - BREAK_RULES.normalHitFirewallDamage - 1);
+  });
+
   it('nmap_scan reaches an enemy 4 hexes away, and no further', () => {
     const scanFrom = (crawlerAt: ReturnType<typeof at>) =>
       new CombatManager(

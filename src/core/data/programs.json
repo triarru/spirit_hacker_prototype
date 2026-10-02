@@ -99,7 +99,7 @@
       "damage": 0,
       "effects": [{ "type": "stun", "turns": 1 }]
     },
-    "modifier": { "description": "Host spell strips 1 extra firewall bar.", "modifyFn": "addFirewallDamage", "value": 1 },
+    "modifier": { "description": "Host spell strips 1 extra firewall bar, if it deals damage.", "modifyFn": "addFirewallDamage", "value": 1 },
     "passive": { "description": "+3 Qi at the start of each turn.", "passiveFn": "qiPerTurn", "value": 3 }
   },
   "nmap_scan": {

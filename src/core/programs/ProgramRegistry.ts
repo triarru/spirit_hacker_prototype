@@ -30,7 +30,9 @@ export const MODIFIERS: Record<string, ModifyFn> = {
     ...spec,
     effects: [...spec.effects, { type: 'heal', amount: value }],
   }),
-  addFirewallDamage: (spec, value) => ({ ...spec, firewallBonus: spec.firewallBonus + value }),
+  // The extra bars ride on the damage: a spell that does none gets nothing from this.
+  addFirewallDamage: (spec, value) =>
+    spec.damage > 0 ? { ...spec, firewallBonus: spec.firewallBonus + value } : spec,
 };
 
 // --- Passive function map ----------------------------------------------------
