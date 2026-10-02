@@ -168,6 +168,8 @@ export class CombatManager {
   private readonly skipping = new Set<string>();
   /** Enemies that move one hex less during the current enemy phase. */
   private readonly slowed = new Set<string>();
+  /** Enemies whose turn was cut short during the current enemy phase (a trap went off under them). */
+  private readonly interrupted = new Set<string>();
 
   /**
    * By default the fight starts straight away with `deck`. Pass 'LOADOUT' as
@@ -371,6 +373,7 @@ export class CombatManager {
     endPlayerTurn(this.player);
     this.skipping.clear();
     this.slowed.clear();
+    this.interrupted.clear();
     return this.enterPhase('ENEMY_TURN');
   }
 
@@ -456,6 +459,7 @@ export class CombatManager {
   getDefensePrompt(enemyId: string, action: EnemyAction): DefensePrompt | null {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN' || action.type !== 'attack') return null;
+    if (this.interrupted.has(enemyId)) return null;
     if (!canHitFrom(this.grid, enemy, enemy.position, this.player.position)) return null;
     return createDefensePrompt(enemy, this.player);
   }
@@ -471,6 +475,8 @@ export class CombatManager {
   ): CombatEvent[] {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN') return [];
+    // Whatever else it had planned is off: its turn ended where the trap caught it.
+    if (this.interrupted.has(enemyId)) return [];
 
     if (action.type === 'move') {
       const from = enemy.position;
@@ -485,6 +491,14 @@ export class CombatManager {
 
     if (!canHitFrom(this.grid, enemy, enemy.position, this.player.position)) return [];
     return [...this.enemyAttack(enemy, defense), ...this.checkEnd()];
+  }
+
+  /**
+   * Whether the enemy has nothing left to do this turn: it is gone, or a trap
+   * interrupted it. Lets the caller stop stepping through a plan that no longer applies.
+   */
+  isTurnOver(enemyId: string): boolean {
+    return !this.findEnemy(enemyId) || this.interrupted.has(enemyId);
   }
 
   /** Hands the turn back to the player, unless combat already ended. */
@@ -553,11 +567,16 @@ export class CombatManager {
     return events;
   }
 
-  /** If the enemy just stepped onto a trap, sets it off. A trap works once. */
+  /**
+   * If the enemy just stepped onto a trap, sets it off. The trap also stops
+   * the enemy in its tracks: no more movement and no attack this turn. A trap
+   * works once.
+   */
   private springTrap(enemy: Enemy): CombatEvent[] {
     const cell = this.grid.getCell(enemy.position);
     if (!cell || cell.hacked !== 'TRAP') return [];
     cell.hacked = null;
+    this.interrupted.add(enemy.id);
 
     const events: CombatEvent[] = [
       { type: 'trapTriggered', entityId: enemy.id, at: enemy.position },

@@ -57,6 +57,10 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
   /** The line of the spell cast in this batch; the player's hits that follow are folded into it. */
   let castLine: LogLine | null = null;
   let castHits = 0;
+  /** Enemies a trap went off under in this batch. */
+  const trapped = new Set(
+    events.flatMap((event) => (event.type === 'trapTriggered' ? [event.entityId] : [])),
+  );
 
   for (const event of events) {
     switch (event.type) {
@@ -67,6 +71,8 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
         break;
 
       case 'attacked':
+        // A trap's damage is reported on the line that announces the trap.
+        if (event.attackerId === TRAP_ID && trapped.has(event.targetId)) break;
         if (castLine && event.attackerId === playerId) {
           castLine.text += `${castHits === 0 ? ' → ' : ', '}${damageTaken(event, context)}`;
           castHits += 1;
@@ -115,9 +121,21 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
       case 'turretExpired':
         lines.push({ tone: 'neutral', text: 'Turret shut down' });
         break;
-      case 'trapTriggered':
-        lines.push({ tone: 'good', text: `${nameOf(event.entityId)} triggers a trap` });
+      case 'trapTriggered': {
+        const hit = events.find(
+          (other): other is AttackedEvent =>
+            other.type === 'attacked' && other.attackerId === TRAP_ID && other.targetId === event.entityId,
+        );
+        const survived = !events.some((other) => other.type === 'died' && other.entityId === event.entityId);
+        lines.push({
+          tone: 'good',
+          text:
+            `${nameOf(event.entityId)} triggers trap!` +
+            (hit ? ` ${hit.damage} damage.` : '') +
+            (survived ? ' Movement interrupted.' : ''),
+        });
         break;
+      }
       case 'died':
         lines.push(
           event.entityId === playerId

@@ -129,3 +129,31 @@ describe('describeEvents: regeneration', () => {
     expect(text([{ type: 'regenerated', ram: 20, qi: 3 }])).toEqual(['RAM +20 (regen)', 'Qi +3 (regen)']);
   });
 });
+
+describe('describeEvents: traps', () => {
+  const trapHit = (damage: number): CombatEvent => ({
+    type: 'attacked', attackerId: 'trap', targetId: 'crawler_0', at: hex, damage, dodged: false, amplified: false,
+  });
+
+  it('reports the trap, its damage and the interruption on one line', () => {
+    expect(
+      text([
+        { type: 'moved', entityId: 'crawler_0', from: hex, to: hex },
+        { type: 'trapTriggered', entityId: 'crawler_0', at: hex },
+        trapHit(10),
+        { type: 'slowed', entityId: 'crawler_0', at: hex, turns: 1 },
+        { type: 'terrainChanged' },
+      ]),
+    ).toEqual(['Crawler triggers trap! 10 damage. Movement interrupted.', 'Crawler is slowed (1 turn)']);
+  });
+
+  it('does not talk about interrupted movement when the trap killed it', () => {
+    expect(
+      text([
+        { type: 'trapTriggered', entityId: 'crawler_0', at: hex },
+        trapHit(15),
+        { type: 'died', entityId: 'crawler_0', at: hex },
+      ]),
+    ).toEqual(['Crawler triggers trap! 15 damage.', 'Crawler destroyed']);
+  });
+});

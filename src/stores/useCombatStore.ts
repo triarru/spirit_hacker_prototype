@@ -248,6 +248,8 @@ export const useCombatStore = create<CombatState>((set, get) => {
         }
 
         for (const action of combat.planEnemyTurn(enemyId)) {
+          // A trap ends the enemy's turn on the spot, whatever it still had planned.
+          if (combat.isTurnOver(enemyId)) break;
           await sleep(timing.enemyActionDelaySeconds);
           // An attack the player can react to waits here for their parry or dodge.
           const prompt = combat.getDefensePrompt(enemyId, action);
