@@ -247,7 +247,7 @@ export class CombatManager {
     this.player.ap -= PLAYER_DATA.basicAttack.apCost;
     const damage = PLAYER_DATA.basicAttack.damage + this.deck.bonuses.basicAttackDamage;
     return [
-      ...this.hitEnemy(this.player.id, enemy, damage, null, 0, this.player.position),
+      ...this.hitEnemy(this.player.id, enemy, damage, null),
       ...this.checkEnd(),
     ];
   }
@@ -305,9 +305,7 @@ export class CombatManager {
     ];
 
     for (const enemy of plan.enemies) {
-      events.push(
-        ...this.hitEnemy(this.player.id, enemy, spec.damage, program.tag, spec.firewallBonus, this.player.position),
-      );
+      events.push(...this.hitEnemy(this.player.id, enemy, spec.damage, program.tag, spec.firewallBonus));
       const survived = this.enemies.includes(enemy);
       if (survived && plan.stunTurns > 0) {
         enemy.stunTurns = Math.max(enemy.stunTurns, plan.stunTurns);
@@ -348,7 +346,7 @@ export class CombatManager {
     enemy.virusInjected = true;
     return [
       { type: 'virusInjected', entityId: enemy.id, targetId: target.id, at: enemy.position },
-      ...this.hitEnemy(enemy.id, target, enemy.attackDamage, null, 0, enemy.position),
+      ...this.hitEnemy(enemy.id, target, enemy.attackDamage, null),
       ...this.checkEnd(),
     ];
   }
@@ -656,8 +654,6 @@ export class CombatManager {
    * One hit on an enemy: damage (amplified if it is breached), then firewall.
    * `tag` is the hit's spell tag, or null for an untagged hit like the basic
    * attack. A hit with no damage (a pure stun, say) still strips firewall.
-   * `from` is where the attacking entity stands, or null when the hit comes
-   * from the environment (a turret, a trap) rather than from an entity.
    */
   private hitEnemy(
     attackerId: string,
@@ -665,7 +661,6 @@ export class CombatManager {
     baseDamage: number,
     tag: SpellTag | null,
     firewallBonus = 0,
-    from: HexCoord | null = null,
   ): CombatEvent[] {
     const at = enemy.position;
     const events: CombatEvent[] = [];
@@ -689,7 +684,7 @@ export class CombatManager {
         this.removeEnemy(enemy);
         return events;
       }
-      events.push(...this.provoke(enemy, from));
+      if (attackerId === this.player.id) events.push(...this.provoke(enemy));
     }
 
     if (damageFirewall(enemy, firewallDamage)) {
@@ -699,11 +694,14 @@ export class CombatManager {
   }
 
   /**
-   * Counts a damaging hit that came from beyond melee range against an enemy
-   * that holds its ground, and sends it after the player once it has had enough.
+   * Counts a damaging hit the player landed from beyond melee range against an
+   * enemy that holds its ground, and sends it after the player once it has had
+   * enough. Only the player's own hits count: not a turret's, a trap's, or an
+   * infected ally's.
    */
-  private provoke(enemy: Enemy, from: HexCoord | null): CombatEvent[] {
-    if (!enemy.aggro || enemy.aggressive || !from || from.distance(enemy.position) <= 1) return [];
+  private provoke(enemy: Enemy): CombatEvent[] {
+    if (!enemy.aggro || enemy.aggressive) return [];
+    if (this.player.position.distance(enemy.position) <= 1) return [];
 
     enemy.timesHitFromRange += 1;
     const remaining = enemy.aggro.afterRangedHits - enemy.timesHitFromRange;

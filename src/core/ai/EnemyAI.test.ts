@@ -398,6 +398,27 @@ describe('Guardian: guard and aggressive modes', () => {
     expect(guardian.position.equals(at(3, 3))).toBe(true);
   });
 
+  it('an infected ally does not count: only the player\'s own hits provoke it', () => {
+    const combat = new CombatManager(
+      // The crawler stands 3 hexes from the guardian, well outside melee range of it.
+      makeRoom({ player: at(3, 7), enemies: [['guardian', at(3, 2)], ['crawler', at(3, 5)]] }),
+      () => 0.999,
+    );
+    const [guardian, crawler] = combat.enemies;
+    if (!guardian || !crawler) throw new Error('enemies missing');
+    guardian.hp = guardian.maxHp = 500;
+
+    for (let breach = 0; breach < 3; breach++) {
+      crawler.breached = true;
+      crawler.virusInjected = false;
+      combat.player.ap = combat.player.maxAp;
+      expect(stances(combat.injectVirus(crawler.id))).toEqual([]);
+    }
+
+    expect(guardian.hp).toBe(500 - 3 * crawler.attackDamage);
+    expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
+  });
+
   it('other enemy types are never provoked', () => {
     const combat = new CombatManager(
       makeRoom({ player: at(3, 7), enemies: [['crawler', at(3, 4)]] }),
