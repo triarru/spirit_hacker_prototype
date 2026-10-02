@@ -125,6 +125,8 @@ describe('breach in combat', () => {
 
   it('skips the breached enemy turn, keeps it breached for the next player turn, then lets it recover and act', () => {
     const { combat, crawler, guardian } = setup();
+    // Enough HP to still be standing after three enemy attacks.
+    combat.player.hp = combat.player.maxHp = 1000;
     crawler.firewallCurrent = 2;
     combat.playerAttack(crawler.id);
     combat.playerAttack(crawler.id);

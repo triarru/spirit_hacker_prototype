@@ -9,7 +9,7 @@
     "moveRange": 2,
     "attack": {
       "type": "melee",
-      "damage": 10,
+      "damage": 45,
       "range": 1
     },
     "hint": "Hunts you down two hexes at a time, and strikes as soon as it is next to you."
@@ -24,7 +24,7 @@
     "moveRange": 0,
     "attack": {
       "type": "melee",
-      "damage": 15,
+      "damage": 55,
       "range": 1
     },
     "hint": "Holds its post and hits hard up close. Hit it from range twice and it comes after you.",
@@ -42,7 +42,7 @@
     "moveRange": 1,
     "attack": {
       "type": "ranged",
-      "damage": 8,
+      "damage": 30,
       "range": 3
     },
     "hint": "Closes in until it has a clear shot within 3 hexes, then keeps shifting position between shots. Walls block its shots."
