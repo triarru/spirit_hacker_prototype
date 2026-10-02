@@ -111,19 +111,18 @@ describe('reachableHexes', () => {
 });
 
 describe('prototype_room', () => {
-  const { grid, entities, playerId } = loadRoom('prototype_room');
-  const player = entities.find((entity) => entity.id === playerId);
+  const { grid, player, enemies } = loadRoom('prototype_room');
 
   it('spawns the player and 3 enemies on a 7x9 grid', () => {
     expect(grid.allCells()).toHaveLength(63);
-    expect(player).toBeDefined();
-    expect(entities.filter((entity) => entity.kind === 'enemy')).toHaveLength(3);
-    for (const entity of entities) expect(grid.getEntityAt(entity.position)).toBe(entity);
+    expect(enemies).toHaveLength(3);
+    for (const entity of [player, ...enemies]) {
+      expect(grid.getEntityAt(entity.position)).toBe(entity);
+    }
   });
 
   it('lets the player reach a hex next to every enemy', () => {
-    if (!player) throw new Error('player missing');
-    for (const enemy of entities.filter((entity) => entity.kind === 'enemy')) {
+    for (const enemy of enemies) {
       const reachable = enemy.position
         .neighbors()
         .some((hex) => findPath(grid, player.position, hex).length > 0);
@@ -132,7 +131,6 @@ describe('prototype_room', () => {
   });
 
   it('forces a detour around the central wall', () => {
-    if (!player) throw new Error('player missing');
     const goal = at(3, 4);
     const path = findPath(grid, player.position, goal);
     expect(path.length).toBeGreaterThan(player.position.distance(goal) + 1);

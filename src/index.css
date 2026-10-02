@@ -5,7 +5,7 @@
   --text: #cbd5e1;
   --text-dim: #64748b;
   --cyan: #22d3ee;
-  --move: #22c55e;
+  --gold: #facc15;
   --spell: #f97316;
   --hp: #ef4444;
 
@@ -129,14 +129,60 @@ body,
   color: var(--text);
 }
 
+.enemy-info .bar {
+  margin-bottom: 10px;
+}
+
+.hud {
+  top: 68px;
+  left: 20px;
+  display: grid;
+  gap: 8px;
+}
+
+.hud-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.hud-row .bar {
+  flex: 1;
+}
+
+.hud-label {
+  width: 20px;
+  color: var(--text-dim);
+}
+
+.ap-dots {
+  display: flex;
+  gap: 6px;
+}
+
+.ap-dot {
+  width: 12px;
+  height: 12px;
+  border: 2px solid var(--cyan);
+  border-radius: 50%;
+}
+
+.ap-dot-filled {
+  background: var(--cyan);
+}
+
+.ap-dot-banked {
+  border-color: var(--gold);
+}
+
+.ap-dot-banked.ap-dot-filled {
+  background: var(--gold);
+}
+
 .swatch {
   width: 10px;
   height: 10px;
   border-radius: 2px;
-}
-
-.swatch-move {
-  background: var(--move);
 }
 
 .swatch-spell {
@@ -145,7 +191,6 @@ body,
 
 .bar {
   height: 6px;
-  margin-bottom: 10px;
   border-radius: 3px;
   background: #1e293b;
   overflow: hidden;

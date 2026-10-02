@@ -1,0 +1,7 @@
+{
+  "FLOOR": { "walkable": true, "moveCost": 1 },
+  "VEIL_TEAR": { "walkable": true, "moveCost": 2 },
+  "WALL": { "walkable": false },
+  "TERMINAL": { "walkable": false },
+  "OBSTACLE": { "walkable": false }
+}

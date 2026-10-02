@@ -1,3 +1,4 @@
+import { pathCost } from '../core/combat/Movement';
 import type { HexCoord } from '../core/hex/HexCoord';
 import { useCombatStore } from '../stores/useCombatStore';
 import { useUIStore } from '../stores/useUIStore';
@@ -18,18 +19,9 @@ function formatCube(hex: HexCoord): string {
 export function DebugPanel() {
   const grid = useCombatStore((state) => state.grid);
   const hoveredHex = useUIStore((state) => state.hoveredHex);
-  const selectedHex = useUIStore((state) => state.selectedHex);
-  const selectedEntityId = useUIStore((state) => state.selectedEntityId);
   const path = useUIStore((state) => state.path);
-  const moveRangeVisible = useUIStore((state) => state.moveRange.length > 0);
-  const spellRangeVisible = useUIStore((state) => state.spellRange.length > 0);
-  const setMoveRangeVisible = useUIStore((state) => state.setMoveRangeVisible);
-  const previewSpellRange = useUIStore((state) => state.previewSpellRange);
-
-  let pathSummary = '—';
-  if (selectedHex && !selectedEntityId) {
-    pathSummary = path.length > 0 ? `${path.length - 1} steps` : 'unreachable';
-  }
+  const spellRangeVisible = useUIStore((state) => state.spellPreviewRange !== null);
+  const setSpellPreviewRange = useUIStore((state) => state.setSpellPreviewRange);
 
   return (
     <section className="panel debug-panel">
@@ -41,22 +33,16 @@ export function DebugPanel() {
         <dd>{hoveredHex ? formatCube(hoveredHex) : '—'}</dd>
         <dt>Terrain</dt>
         <dd>{(hoveredHex && grid.getCell(hoveredHex)?.terrain) ?? '—'}</dd>
-        <dt>Path</dt>
-        <dd>{pathSummary}</dd>
+        <dt>Move cost</dt>
+        <dd>{path.length > 1 ? `${pathCost(grid, path)} AP` : '—'}</dd>
       </dl>
       <label>
         <input
           type="checkbox"
-          checked={moveRangeVisible}
-          onChange={(event) => setMoveRangeVisible(event.target.checked)}
-        />
-        <span className="swatch swatch-move" /> Move range
-      </label>
-      <label>
-        <input
-          type="checkbox"
           checked={spellRangeVisible}
-          onChange={(event) => previewSpellRange(event.target.checked ? PREVIEW_SPELL_RANGE : null)}
+          onChange={(event) =>
+            setSpellPreviewRange(event.target.checked ? PREVIEW_SPELL_RANGE : null)
+          }
         />
         <span className="swatch swatch-spell" /> Spell range ({PREVIEW_SPELL_RANGE})
       </label>

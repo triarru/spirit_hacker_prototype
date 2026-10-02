@@ -1,12 +1,15 @@
-import { selectPlayer, useCombatStore } from '../stores/useCombatStore';
-import { useUIStore } from '../stores/useUIStore';
+import { useCombatStore } from '../stores/useCombatStore';
+import { selectFocusedEnemyId, useUIStore } from '../stores/useUIStore';
 
 export function EnemyInfo() {
+  const grid = useCombatStore((state) => state.grid);
+  const enemies = useCombatStore((state) => state.enemies);
+  const player = useCombatStore((state) => state.player);
+  const hoveredHex = useUIStore((state) => state.hoveredHex);
   const selectedEntityId = useUIStore((state) => state.selectedEntityId);
-  const entities = useCombatStore((state) => state.entities);
-  const player = useCombatStore(selectPlayer);
 
-  const enemy = entities.find((entity) => entity.id === selectedEntityId && entity.kind === 'enemy');
+  const focusedId = selectFocusedEnemyId({ grid }, { hoveredHex, selectedEntityId });
+  const enemy = enemies.find((candidate) => candidate.id === focusedId);
   if (!enemy) return null;
 
   const { col, row } = enemy.position.toOffset();

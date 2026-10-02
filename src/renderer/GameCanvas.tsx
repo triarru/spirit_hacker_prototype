@@ -1,8 +1,8 @@
 import { useEffect, useRef } from 'react';
-import { Application, Container, type FederatedPointerEvent } from 'pixi.js';
+import { Application, Container, type FederatedPointerEvent, type Ticker } from 'pixi.js';
 import { pixelToHex, type HexCoord } from '../core/hex/HexCoord';
 import { useCombatStore } from '../stores/useCombatStore';
-import { useUIStore } from '../stores/useUIStore';
+import { selectSpellRange, useUIStore } from '../stores/useUIStore';
 import { EntityRenderer } from './EntityRenderer';
 import { HexGridRenderer } from './HexGridRenderer';
 
@@ -37,31 +37,53 @@ function mountGame(app: Application): () => void {
     );
   };
 
-  const drawCombat = (): void => {
-    const { grid, entities } = useCombatStore.getState();
-    gridRenderer.drawTerrain(grid);
-    entityRenderer.sync(entities);
+  const drawTerrain = (): void => {
+    gridRenderer.drawTerrain(useCombatStore.getState().grid);
     layout();
   };
 
-  const drawUI = (): void => {
+  const drawRanges = (): void => {
+    const combat = useCombatStore.getState();
     const ui = useUIStore.getState();
-    gridRenderer.drawRanges(ui.moveRange, ui.spellRange);
-    gridRenderer.drawPath(ui.path);
-    gridRenderer.drawCursor(ui.hoveredHex, ui.selectedHex);
+    gridRenderer.drawRanges(
+      // Mid-walk the range would be redrawn on every step; hide it until the player stops.
+      combat.busy ? [] : combat.moveRange,
+      selectSpellRange(combat, ui.spellPreviewRange),
+    );
   };
 
-  drawCombat();
-  drawUI();
+  const drawCursor = (): void => {
+    const combat = useCombatStore.getState();
+    const ui = useUIStore.getState();
+    const selected = combat.enemies.find((enemy) => enemy.id === ui.selectedEntityId);
+    gridRenderer.drawCursor(ui.hoveredHex, selected?.position ?? null);
+  };
 
-  const unsubscribeCombat = useCombatStore.subscribe(drawCombat);
+  const syncEntities = (): void => {
+    const { player, enemies } = useCombatStore.getState();
+    entityRenderer.sync([player, ...enemies]);
+  };
+
+  drawTerrain();
+  syncEntities();
+  drawRanges();
+  drawCursor();
+  gridRenderer.drawPath(useUIStore.getState().path);
+
+  const unsubscribeCombat = useCombatStore.subscribe((state, previous) => {
+    if (state.grid !== previous.grid) drawTerrain();
+    syncEntities();
+    drawRanges();
+    drawCursor();
+  });
   const unsubscribeUI = useUIStore.subscribe((state, previous) => {
-    if (state.moveRange !== previous.moveRange || state.spellRange !== previous.spellRange) {
-      gridRenderer.drawRanges(state.moveRange, state.spellRange);
-    }
+    if (state.spellPreviewRange !== previous.spellPreviewRange) drawRanges();
     if (state.path !== previous.path) gridRenderer.drawPath(state.path);
-    if (state.hoveredHex !== previous.hoveredHex || state.selectedHex !== previous.selectedHex) {
-      gridRenderer.drawCursor(state.hoveredHex, state.selectedHex);
+    if (
+      state.hoveredHex !== previous.hoveredHex ||
+      state.selectedEntityId !== previous.selectedEntityId
+    ) {
+      drawCursor();
     }
   });
 
@@ -75,14 +97,17 @@ function mountGame(app: Application): () => void {
   app.stage.eventMode = 'static';
   app.stage.hitArea = app.screen;
   app.stage.on('pointermove', (event) => useUIStore.getState().setHoveredHex(hexUnderPointer(event)));
-  app.stage.on('pointerdown', (event) => useUIStore.getState().selectHex(hexUnderPointer(event)));
+  app.stage.on('pointerdown', (event) => useUIStore.getState().clickHex(hexUnderPointer(event)));
   app.stage.on('pointerleave', () => useUIStore.getState().setHoveredHex(null));
 
+  const tick = (ticker: Ticker): void => entityRenderer.update(ticker.deltaMS / 1000);
+  app.ticker.add(tick);
   app.renderer.on('resize', layout);
 
   return () => {
     unsubscribeCombat();
     unsubscribeUI();
+    app.ticker.remove(tick);
     app.renderer.off('resize', layout);
   };
 }

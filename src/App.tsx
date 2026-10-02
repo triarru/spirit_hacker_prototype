@@ -1,6 +1,7 @@
 import { GameCanvas } from './renderer/GameCanvas';
 import { DebugPanel } from './ui/DebugPanel';
 import { EnemyInfo } from './ui/EnemyInfo';
+import { HUD } from './ui/HUD';
 
 export function App() {
   return (
@@ -9,8 +10,9 @@ export function App() {
       <div className="ui-overlay">
         <header className="title">
           <h1>Spirit Hacker</h1>
-          <span>prototype // hex grid</span>
+          <span>prototype</span>
         </header>
+        <HUD />
         <EnemyInfo />
         <DebugPanel />
       </div>

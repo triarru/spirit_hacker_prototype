@@ -1,15 +1,9 @@
+import { createEnemy, type Enemy } from '../entities/Enemy';
 import type { Entity } from '../entities/Entity';
+import { createPlayer, type Player } from '../entities/Player';
 import { HexCoord, type OffsetCoord } from '../hex/HexCoord';
 import { HexGrid, isTerrainType } from '../hex/HexGrid';
-import enemiesJson from './enemies.json';
-import playerJson from './player.json';
 import roomsJson from './rooms.json';
-
-interface EntityDefinition {
-  name: string;
-  maxHp: number;
-  speed: number;
-}
 
 interface RoomDefinition {
   cols: number;
@@ -20,17 +14,14 @@ interface RoomDefinition {
 }
 
 const ROOMS: Record<string, RoomDefinition> = roomsJson;
-const ENEMIES: Record<string, EntityDefinition> = enemiesJson;
-
-export const PLAYER_ID = 'player';
 
 export interface RoomState {
   grid: HexGrid;
-  entities: Entity[];
-  playerId: string;
+  player: Player;
+  enemies: Enemy[];
 }
 
-/** Builds a fresh grid and entity list from a room definition in rooms.json. */
+/** Builds a fresh grid and its entities from a room definition in rooms.json. */
 export function loadRoom(roomId: string): RoomState {
   const room = ROOMS[roomId];
   if (!room) throw new Error(`Unknown room "${roomId}"`);
@@ -42,41 +33,21 @@ export function loadRoom(roomId: string): RoomState {
     grid.setTerrain(HexCoord.fromOffset(col, row), type);
   }
 
-  const entities: Entity[] = [];
-  const spawn = (entity: Entity): void => {
+  const place = <T extends Entity>(entity: T): T => {
     if (grid.isBlocked(entity.position)) {
       const { col, row } = entity.position.toOffset();
       throw new Error(`Room "${roomId}": cannot spawn ${entity.id} on blocked hex (${col}, ${row})`);
     }
     grid.setEntityAt(entity.position, entity);
-    entities.push(entity);
+    return entity;
   };
 
-  spawn({
-    id: PLAYER_ID,
-    kind: 'player',
-    typeId: 'player',
-    name: playerJson.name,
-    position: HexCoord.fromOffset(room.playerStart.col, room.playerStart.row),
-    hp: playerJson.maxHp,
-    maxHp: playerJson.maxHp,
-    speed: playerJson.speed,
-  });
+  const player = place(
+    createPlayer(HexCoord.fromOffset(room.playerStart.col, room.playerStart.row)),
+  );
+  const enemies = room.enemies.map(({ type, col, row }, index) =>
+    place(createEnemy(type, `${type}_${index}`, HexCoord.fromOffset(col, row))),
+  );
 
-  room.enemies.forEach(({ type, col, row }, index) => {
-    const definition = ENEMIES[type];
-    if (!definition) throw new Error(`Room "${roomId}": unknown enemy type "${type}"`);
-    spawn({
-      id: `${type}_${index}`,
-      kind: 'enemy',
-      typeId: type,
-      name: definition.name,
-      position: HexCoord.fromOffset(col, row),
-      hp: definition.maxHp,
-      maxHp: definition.maxHp,
-      speed: definition.speed,
-    });
-  });
-
-  return { grid, entities, playerId: PLAYER_ID };
+  return { grid, player, enemies };
 }

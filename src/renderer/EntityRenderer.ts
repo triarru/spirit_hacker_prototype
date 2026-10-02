@@ -1,4 +1,5 @@
 import { Container, Graphics } from 'pixi.js';
+import timing from '../core/data/timing.json';
 import type { Entity } from '../core/entities/Entity';
 import { hexToPixel } from '../core/hex/HexCoord';
 
@@ -39,9 +40,24 @@ const drawPlayer: ShapeDrawer = (g) => {
   g.circle(0, 0, RADIUS).fill({ color: PLAYER_COLOR }).stroke({ width: 3, color: BORDER_COLOR });
 };
 
+interface Tween {
+  fromX: number;
+  fromY: number;
+  toX: number;
+  toY: number;
+  elapsed: number;
+}
+
+interface EntityView {
+  shape: Graphics;
+  /** Key of the hex this view is at, or travelling to. */
+  hexKey: string;
+  tween: Tween | null;
+}
+
 export class EntityRenderer {
   readonly container = new Container();
-  private readonly views = new Map<string, Graphics>();
+  private readonly views = new Map<string, EntityView>();
 
   /** Reconciles the drawn shapes with the entity list: adds new, moves existing, removes gone. */
   sync(entities: Entity[]): void {
@@ -49,24 +65,53 @@ export class EntityRenderer {
 
     for (const entity of entities) {
       alive.add(entity.id);
-      let view = this.views.get(entity.id);
+      const target = hexToPixel(entity.position);
+      const hexKey = entity.position.key();
+
+      const view = this.views.get(entity.id);
       if (!view) {
-        view = this.createView(entity);
-        this.views.set(entity.id, view);
-        this.container.addChild(view);
+        const shape = this.createShape(entity);
+        shape.position.set(target.x, target.y);
+        this.container.addChild(shape);
+        this.views.set(entity.id, { shape, hexKey, tween: null });
+      } else if (view.hexKey !== hexKey) {
+        // Start from wherever the shape is right now, so a step that arrives
+        // a frame early never makes it jump.
+        view.tween = {
+          fromX: view.shape.x,
+          fromY: view.shape.y,
+          toX: target.x,
+          toY: target.y,
+          elapsed: 0,
+        };
+        view.hexKey = hexKey;
       }
-      const { x, y } = hexToPixel(entity.position);
-      view.position.set(x, y);
     }
 
     for (const [id, view] of this.views) {
       if (alive.has(id)) continue;
-      view.destroy();
+      view.shape.destroy();
       this.views.delete(id);
     }
   }
 
-  private createView(entity: Entity): Graphics {
+  /** Advances movement tweens. Call once per frame. */
+  update(deltaSeconds: number): void {
+    for (const view of this.views.values()) {
+      const tween = view.tween;
+      if (!tween) continue;
+
+      tween.elapsed += deltaSeconds;
+      const t = Math.min(tween.elapsed / timing.moveSecondsPerHex, 1);
+      view.shape.position.set(
+        tween.fromX + (tween.toX - tween.fromX) * t,
+        tween.fromY + (tween.toY - tween.fromY) * t,
+      );
+      if (t >= 1) view.tween = null;
+    }
+  }
+
+  private createShape(entity: Entity): Graphics {
     const g = new Graphics();
     if (entity.kind === 'player') {
       drawPlayer(g);

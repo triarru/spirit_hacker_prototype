@@ -1,75 +1,71 @@
 import { create } from 'zustand';
-import playerData from '../core/data/player.json';
 import type { HexCoord } from '../core/hex/HexCoord';
-import { findPath, reachableHexes } from '../core/hex/HexPathfinding';
-import { selectPlayer, useCombatStore } from './useCombatStore';
+import { previewPath, useCombatStore, type CombatState } from './useCombatStore';
 
 interface UIState {
   hoveredHex: HexCoord | null;
-  selectedHex: HexCoord | null;
-  /** Path from the player to `selectedHex`, both ends included. Empty when unreachable. */
-  path: HexCoord[];
   selectedEntityId: string | null;
-  moveRange: HexCoord[];
-  spellRange: HexCoord[];
+  /** Path the player would walk to `hoveredHex`, both ends included. Empty when out of reach. */
+  path: HexCoord[];
+  /** Radius of the spell range preview around the player; `null` hides it. */
+  spellPreviewRange: number | null;
 
   setHoveredHex: (hex: HexCoord | null) => void;
-  selectHex: (hex: HexCoord | null) => void;
-  setMoveRangeVisible: (visible: boolean) => void;
-  /** Highlights every hex within `range` of the player; `null` clears the preview. */
-  previewSpellRange: (range: number | null) => void;
-}
-
-function computeMoveRange(): HexCoord[] {
-  const combat = useCombatStore.getState();
-  return reachableHexes(combat.grid, selectPlayer(combat).position, playerData.maxAp);
+  clickHex: (hex: HexCoord | null) => void;
+  setSpellPreviewRange: (range: number | null) => void;
 }
 
 export const useUIStore = create<UIState>((set, get) => ({
   hoveredHex: null,
-  selectedHex: null,
-  path: [],
   selectedEntityId: null,
-  moveRange: computeMoveRange(),
-  spellRange: [],
+  path: [],
+  spellPreviewRange: null,
 
   setHoveredHex: (hex) => {
     const current = get().hoveredHex;
     // pointermove fires per pixel; only notify subscribers when the hex actually changes.
     if (current === hex || (current && hex && current.equals(hex))) return;
-    set({ hoveredHex: hex });
+    set({ hoveredHex: hex, path: hex ? previewPath(hex) : [] });
   },
 
-  selectHex: (hex) => {
+  clickHex: (hex) => {
     const combat = useCombatStore.getState();
-    if (!hex || !combat.grid.has(hex)) {
-      set({ selectedHex: null, selectedEntityId: null, path: [] });
-      return;
-    }
-
-    const entity = combat.grid.getEntityAt(hex);
+    const entity = hex ? combat.grid.getEntityAt(hex) : null;
     if (entity?.kind === 'enemy') {
-      set({ selectedHex: hex, selectedEntityId: entity.id, path: [] });
+      set({ selectedEntityId: entity.id });
       return;
     }
 
-    const path = findPath(combat.grid, selectPlayer(combat).position, hex);
-    set({ selectedHex: hex, selectedEntityId: null, path });
+    set({ selectedEntityId: null });
+    if (hex) void combat.movePlayerTo(hex);
   },
 
-  setMoveRangeVisible: (visible) => set({ moveRange: visible ? computeMoveRange() : [] }),
-
-  previewSpellRange: (range) => {
-    if (range === null) {
-      set({ spellRange: [] });
-      return;
-    }
-    const combat = useCombatStore.getState();
-    const origin = selectPlayer(combat).position;
-    set({
-      spellRange: origin
-        .hexesInRange(range)
-        .filter((hex) => combat.grid.has(hex) && !hex.equals(origin)),
-    });
-  },
+  setSpellPreviewRange: (range) => set({ spellPreviewRange: range }),
 }));
+
+// The hovered hex stays put while the player walks, but the path to it does not.
+useCombatStore.subscribe(() => {
+  const { hoveredHex, path } = useUIStore.getState();
+  const next = hoveredHex ? previewPath(hoveredHex) : [];
+  if (next.length === 0 && path.length === 0) return;
+  useUIStore.setState({ path: next });
+});
+
+/** Hexes covered by the spell range preview. Stand-in until spells define their own targeting. */
+export function selectSpellRange(
+  combat: Pick<CombatState, 'grid' | 'player'>,
+  range: number | null,
+): HexCoord[] {
+  if (range === null) return [];
+  const origin = combat.player.position;
+  return origin.hexesInRange(range).filter((hex) => combat.grid.has(hex) && !hex.equals(origin));
+}
+
+/** The enemy the info panel should describe: the hovered one, else the selected one. */
+export function selectFocusedEnemyId(
+  combat: Pick<CombatState, 'grid'>,
+  ui: Pick<UIState, 'hoveredHex' | 'selectedEntityId'>,
+): string | null {
+  const hovered = ui.hoveredHex ? combat.grid.getEntityAt(ui.hoveredHex) : null;
+  return hovered?.kind === 'enemy' ? hovered.id : ui.selectedEntityId;
+}

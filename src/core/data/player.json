@@ -2,5 +2,7 @@
   "name": "Vân",
   "maxHp": 100,
   "speed": 5,
-  "maxAp": 3
+  "maxAp": 3,
+  "maxRam": 50,
+  "maxQi": 30
 }

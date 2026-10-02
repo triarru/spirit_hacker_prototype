@@ -1,3 +1,4 @@
+import terrainJson from '../data/terrain.json';
 import type { Entity } from '../entities/Entity';
 import { HexCoord } from './HexCoord';
 
@@ -17,8 +18,14 @@ export interface HexCell {
   hacked: HackType | null;
 }
 
-/** Terrain an entity can stand on. A terminal is a solid object, so it blocks like a wall. */
-const WALKABLE_TERRAIN: ReadonlySet<TerrainType> = new Set<TerrainType>(['FLOOR', 'VEIL_TEAR']);
+interface TerrainRule {
+  /** An entity can stand here. A terminal is a solid object, so it blocks like a wall. */
+  walkable: boolean;
+  /** AP spent to step in. Only meaningful for walkable terrain. */
+  moveCost?: number;
+}
+
+const TERRAIN_RULES: Record<TerrainType, TerrainRule> = terrainJson;
 
 /**
  * Rectangular hex grid (flat-top, odd-q offset) addressed by cube coordinates.
@@ -59,12 +66,19 @@ export class HexGrid {
   /** Terrain allows standing here. Ignores entities. */
   isWalkable(hex: HexCoord): boolean {
     const cell = this.getCell(hex);
-    return cell !== undefined && WALKABLE_TERRAIN.has(cell.terrain);
+    return cell !== undefined && TERRAIN_RULES[cell.terrain].walkable;
   }
 
   /** Nothing can move into this hex right now: off-grid, solid terrain, or occupied. */
   isBlocked(hex: HexCoord): boolean {
     return !this.isWalkable(hex) || this.getEntityAt(hex) !== null;
+  }
+
+  /** AP needed to step into this hex. Infinite for hexes that can never be entered. */
+  moveCost(hex: HexCoord): number {
+    const cell = this.getCell(hex);
+    if (!cell) return Infinity;
+    return TERRAIN_RULES[cell.terrain].moveCost ?? Infinity;
   }
 
   getEntityAt(hex: HexCoord): Entity | null {
@@ -73,6 +87,14 @@ export class HexGrid {
 
   setEntityAt(hex: HexCoord, entity: Entity | null): void {
     this.requireCell(hex).entity = entity;
+  }
+
+  /** Relocates an entity, keeping its `position` and the grid's occupancy in step. */
+  moveEntity(entity: Entity, to: HexCoord): void {
+    const destination = this.requireCell(to);
+    this.requireCell(entity.position).entity = null;
+    destination.entity = entity;
+    entity.position = to;
   }
 
   private requireCell(hex: HexCoord): HexCell {
