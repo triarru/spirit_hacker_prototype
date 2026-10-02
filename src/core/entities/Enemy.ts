@@ -20,6 +20,8 @@ export interface Enemy extends Entity {
   breached: boolean;
   /** Turns a breached enemy still has to sit out before it can recover. */
   breachSkipsLeft: number;
+  /** A virus has already been injected during the current breach; one per breach. */
+  virusInjected: boolean;
   /** Turns this enemy will lose to a stun. */
   stunTurns: number;
   /** Turns this enemy will move one hex less than usual. */
@@ -89,6 +91,7 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
     firewallCurrent: definition.firewall,
     breached: false,
     breachSkipsLeft: 0,
+    virusInjected: false,
     stunTurns: 0,
     slowTurns: 0,
     weakness: parseOneOf(SPELL_TAGS, definition.weakness, `weakness of ${typeId}`),

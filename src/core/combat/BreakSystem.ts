@@ -25,6 +25,8 @@ export function damageFirewall(enemy: Enemy, amount: number): boolean {
 
   enemy.breached = true;
   enemy.breachSkipsLeft = BREAK_RULES.breachSkippedTurns;
+  // A fresh breach is a fresh opening for a virus.
+  enemy.virusInjected = false;
   return true;
 }
 
@@ -49,6 +51,7 @@ export function tickBreach(enemy: Enemy): BreachTick {
   }
 
   enemy.breached = false;
+  enemy.virusInjected = false;
   // Never restore to 0, or an enemy with a 1-bar firewall would be breached forever.
   enemy.firewallCurrent = Math.max(1, enemy.firewallMax - BREAK_RULES.recoveryFirewallPenalty);
   return 'recovered';

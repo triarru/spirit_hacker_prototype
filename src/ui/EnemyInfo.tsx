@@ -58,7 +58,8 @@ export function EnemyInfo() {
           </>
         )}
       </dl>
-      {enemy.breached && (
+      {enemy.breached && enemy.virusInjected && <p className="virus-used">Virus injected</p>}
+      {enemy.breached && !enemy.virusInjected && (
         <>
           <button
             type="button"

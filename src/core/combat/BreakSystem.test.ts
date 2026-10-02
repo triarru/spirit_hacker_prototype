@@ -229,6 +229,43 @@ describe('inject virus', () => {
     expect(combat.phase).toBe('PLAYER_TURN');
   });
 
+  it('works once per breach', () => {
+    const { combat, crawler, guardian } = setup();
+    guardian.hp = guardian.maxHp = 500;
+
+    expect(combat.injectVirus(crawler.id).length).toBeGreaterThan(0);
+    expect(crawler.virusInjected).toBe(true);
+    expect(guardian.hp).toBe(500 - crawler.attackDamage);
+  });
+
+  it('is blocked on a second attempt during the same breach', () => {
+    const { combat, crawler, guardian } = setup();
+    guardian.hp = guardian.maxHp = 500;
+    combat.injectVirus(crawler.id);
+    const [apAfter, ramAfter] = [combat.player.ap, combat.player.ram];
+
+    expect(combat.getInjectableEnemies()).toEqual([]);
+    expect(combat.injectVirus(crawler.id)).toEqual([]);
+    expect(guardian.hp).toBe(500 - crawler.attackDamage);
+    expect([combat.player.ap, combat.player.ram]).toEqual([apAfter, ramAfter]);
+  });
+
+  it('can be used again on a new breach, after the enemy has recovered', () => {
+    const { combat, crawler, guardian } = setup();
+    guardian.hp = guardian.maxHp = 500;
+    combat.injectVirus(crawler.id);
+
+    // Sit out its skipped turn, then recover: the flag clears with the breach.
+    const ticks = Array.from({ length: BREAK_RULES.breachSkippedTurns + 1 }, () => tickBreach(crawler));
+    expect(ticks.at(-1)).toBe('recovered');
+    expect([crawler.breached, crawler.virusInjected]).toEqual([false, false]);
+    expect(combat.getInjectableEnemies()).toEqual([]);
+
+    damageFirewall(crawler, 99);
+    expect(combat.getInjectableEnemies()).toEqual([crawler]);
+    expect(combat.injectVirus(crawler.id).length).toBeGreaterThan(0);
+  });
+
   it('cannot be used outside the player turn', () => {
     const { combat, crawler } = setup();
     combat.endPlayerTurn();

@@ -829,3 +829,15 @@ body,
 .stance-aggressive {
   color: var(--hp);
 }
+
+.virus-used {
+  margin: 0;
+  padding: 6px 10px;
+  border: 1px dashed var(--virus);
+  border-radius: 4px;
+  color: var(--virus);
+  letter-spacing: 0.08em;
+  text-align: center;
+  text-transform: uppercase;
+  opacity: 0.75;
+}

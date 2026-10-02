@@ -324,12 +324,17 @@ export class CombatManager {
     return [...events, ...this.checkEnd()];
   }
 
-  /** Breached enemies the player can afford to inject right now, and that have an ally to turn on. */
+  /**
+   * Breached enemies the player can afford to inject right now, that have an
+   * ally to turn on, and that have not already been injected during this breach.
+   */
   getInjectableEnemies(): Enemy[] {
     const { apCost, ramCost } = BREAK_RULES.injectVirus;
     if (this.phase !== 'PLAYER_TURN') return [];
     if (this.player.ap < apCost || this.player.ram < ramCost) return [];
-    return this.enemies.filter((enemy) => enemy.breached && this.nearestAlly(enemy) !== null);
+    return this.enemies.filter(
+      (enemy) => enemy.breached && !enemy.virusInjected && this.nearestAlly(enemy) !== null,
+    );
   }
 
   /** Makes a breached enemy attack its nearest ally once. */
@@ -340,6 +345,7 @@ export class CombatManager {
 
     this.player.ap -= BREAK_RULES.injectVirus.apCost;
     this.player.ram -= BREAK_RULES.injectVirus.ramCost;
+    enemy.virusInjected = true;
     return [
       { type: 'virusInjected', entityId: enemy.id, targetId: target.id, at: enemy.position },
       ...this.hitEnemy(enemy.id, target, enemy.attackDamage, null, 0, enemy.position),
