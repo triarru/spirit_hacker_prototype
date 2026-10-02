@@ -163,7 +163,9 @@ describe('breach in combat', () => {
     crawler.hp = basicAttack.damage;
     crawler.firewallCurrent = 1;
 
-    expect(combat.playerAttack(crawler.id).map((event) => event.type)).toEqual(['attacked', 'died']);
+    const types = combat.playerAttack(crawler.id).map((event) => event.type);
+    expect(types.slice(0, 2)).toEqual(['attacked', 'died']);
+    expect(types).not.toContain('breached');
   });
 });
 

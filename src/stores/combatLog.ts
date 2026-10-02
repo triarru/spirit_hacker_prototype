@@ -138,6 +138,8 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
           });
         } else if (event.stance === 'aggressive') {
           lines.push({ tone: 'bad', text: `${name} breaks position!` });
+        } else if (event.stance === 'last_stand') {
+          lines.push({ tone: 'bad', text: `${name} is the last one standing — it leaves its post and hunts you down.` });
         } else {
           lines.push({ tone: 'neutral', text: `${name} settles back into its guard.` });
         }

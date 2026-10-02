@@ -27,10 +27,11 @@
       "damage": 55,
       "range": 1
     },
-    "hint": "Holds its post and hits hard up close. Hit it from range twice and it comes after you.",
+    "hint": "Holds its post and hits hard up close. Hit it from range twice and it comes after you. Once it is the last one left, it hunts you down.",
     "aggroAfterRangedHits": 2,
     "aggressiveSpeed": 2,
-    "aggressiveMoveRange": 1
+    "aggressiveMoveRange": 1,
+    "lastStandMoveRange": 2
   },
   "ghost_process": {
     "name": "Ghost Process",

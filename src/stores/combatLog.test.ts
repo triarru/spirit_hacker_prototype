@@ -67,6 +67,12 @@ describe('describeEvents', () => {
       .toEqual(['Dodged the wrong way']);
   });
 
+  it('announces the last enemy leaving its post', () => {
+    expect(text([{ type: 'stanceShifted', entityId: 'guardian_1', at: hex, stance: 'last_stand' }])).toEqual([
+      'Guardian is the last one standing — it leaves its post and hunts you down.',
+    ]);
+  });
+
   it('reports an enemy breaking through a temporary wall', () => {
     expect(text([{ type: 'wallBroken', entityId: 'crawler_0', at: hex }, { type: 'terrainChanged' }])).toEqual([
       'Crawler breaks through a wall',

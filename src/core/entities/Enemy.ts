@@ -44,6 +44,8 @@ export interface Enemy extends Entity {
   timesHitFromRange: number;
   /** It has been provoked and is advancing on the player. */
   aggressive: boolean;
+  /** Its last ally has fallen: it has left its post for good and will not settle back into its guard. */
+  lastStand: boolean;
 }
 
 export interface AggroRule {
@@ -55,6 +57,8 @@ export interface AggroRule {
   moveRange: number;
   /** Its turn-order speed while holding position, to go back to. */
   guardSpeed: number;
+  /** Hexes it moves per turn once it is the last enemy left; null if being alone changes nothing for it. */
+  lastStandMoveRange: number | null;
 }
 
 interface EnemyDefinition {
@@ -70,6 +74,7 @@ interface EnemyDefinition {
   aggroAfterRangedHits?: number;
   aggressiveSpeed?: number;
   aggressiveMoveRange?: number;
+  lastStandMoveRange?: number;
 }
 
 const DEFINITIONS: Record<string, EnemyDefinition> = enemiesJson;
@@ -109,19 +114,28 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
             speed: definition.aggressiveSpeed ?? definition.speed,
             moveRange: definition.aggressiveMoveRange ?? 1,
             guardSpeed: definition.speed,
+            lastStandMoveRange: definition.lastStandMoveRange ?? null,
           },
     timesHitFromRange: 0,
     aggressive: false,
+    lastStand: false,
   };
 }
 
-/** Hexes the enemy may move this turn: more than usual for one that has been provoked into advancing. */
+/**
+ * Hexes the enemy may move this turn: more than usual for one that has been
+ * provoked into advancing, and more again for one making its last stand.
+ */
 export function moveRangeOf(enemy: Enemy): number {
-  return enemy.aggressive && enemy.aggro ? enemy.aggro.moveRange : enemy.moveRange;
+  if (!enemy.aggressive || !enemy.aggro) return enemy.moveRange;
+  return enemy.lastStand && enemy.aggro.lastStandMoveRange !== null
+    ? enemy.aggro.lastStandMoveRange
+    : enemy.aggro.moveRange;
 }
 
 /** What to call the enemy's current behavior, for display. */
 export function stanceOf(enemy: Enemy): string {
+  if (enemy.lastStand) return 'Last stand';
   if (enemy.behaviorType === 'guard') return enemy.aggressive ? 'Aggressive' : 'Guard';
   return enemy.behaviorType === 'patrol' ? 'Hunter' : 'Erratic';
 }

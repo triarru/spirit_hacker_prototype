@@ -523,6 +523,103 @@ describe('Guardian: guard and aggressive modes', () => {
     expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
   });
 
+  describe('last stand', () => {
+    /** A guardian at its post, the player well away from it, and a crawler next to the player. */
+    function withOneAlly() {
+      const combat = new CombatManager(
+        makeRoom({ player: at(3, 7), enemies: [['guardian', at(3, 1)], ['crawler', at(3, 6)]] }),
+        () => 0.999,
+      );
+      const [guardian, crawler] = combat.enemies;
+      if (!guardian || !crawler) throw new Error('enemies missing');
+      combat.player.hp = combat.player.maxHp = 1000;
+      return { combat, guardian, crawler };
+    }
+    const killCrawler = (combat: CombatManager, crawler: Enemy) => {
+      crawler.hp = 1;
+      return combat.playerAttack(crawler.id);
+    };
+
+    it('leaves its post for good when its last ally dies', () => {
+      const { combat, guardian, crawler } = withOneAlly();
+
+      const events = killCrawler(combat, crawler);
+
+      expect(stances(events)).toEqual(['last_stand']);
+      expect([guardian.lastStand, guardian.aggressive]).toEqual([true, true]);
+    });
+
+    it('covers two hexes a turn, so waiting for resources is no longer free', () => {
+      const { combat, guardian, crawler } = withOneAlly();
+      killCrawler(combat, crawler);
+      const before = guardian.position.distance(combat.player.position);
+
+      passTurn(combat);
+
+      expect(guardian.position.distance(combat.player.position)).toBe(before - 2);
+    });
+
+    it('does not settle back into its guard after it strikes: it keeps coming', () => {
+      const { combat, guardian, crawler } = withOneAlly();
+      killCrawler(combat, crawler);
+      for (let turn = 0; turn < 3; turn++) passTurn(combat);
+      expect(combat.player.hp).toBeLessThan(combat.player.maxHp);
+      expect(guardian.aggressive).toBe(true);
+
+      // The player walks off; it follows.
+      combat.grid.moveEntity(combat.player, at(0, 0));
+      const before = guardian.position.distance(combat.player.position);
+      passTurn(combat);
+      expect(guardian.position.distance(combat.player.position)).toBeLessThan(before);
+    });
+
+    it('is slowed like anything else: one hex instead of two', () => {
+      const { combat, guardian, crawler } = withOneAlly();
+      killCrawler(combat, crawler);
+      guardian.slowTurns = 1;
+      const before = guardian.position.distance(combat.player.position);
+
+      passTurn(combat);
+
+      expect(guardian.position.distance(combat.player.position)).toBe(before - 1);
+    });
+
+    it('does not start while it still has an ally', () => {
+      const combat = new CombatManager(
+        makeRoom({
+          player: at(3, 7),
+          enemies: [['guardian', at(3, 1)], ['crawler', at(3, 6)], ['crawler', at(0, 0)]],
+        }),
+        () => 0.999,
+      );
+      const [guardian, near] = combat.enemies;
+      if (!guardian || !near) throw new Error('enemies missing');
+
+      expect(stances(killCrawler(combat, near))).toEqual([]);
+      expect([guardian.lastStand, guardian.aggressive]).toEqual([false, false]);
+    });
+
+    it('does not apply to a guardian that was alone from the start', () => {
+      const { combat, guardian } = standoff(4);
+      for (let turn = 0; turn < 3; turn++) passTurn(combat);
+
+      expect(guardian.lastStand).toBe(false);
+      expect(guardian.position.equals(at(3, 3))).toBe(true);
+    });
+
+    it('does nothing for an enemy that never held a post', () => {
+      const combat = new CombatManager(
+        makeRoom({ player: at(3, 7), enemies: [['crawler', at(3, 6)], ['ghost_process', at(0, 0)]] }),
+        () => 0.999,
+      );
+      const [crawler, ghost] = combat.enemies;
+      if (!crawler || !ghost) throw new Error('enemies missing');
+
+      expect(stances(killCrawler(combat, crawler))).toEqual([]);
+      expect(ghost.lastStand).toBe(false);
+    });
+  });
+
   it('other enemy types are never provoked', () => {
     const combat = new CombatManager(
       makeRoom({ player: at(3, 7), enemies: [['crawler', at(3, 4)]] }),

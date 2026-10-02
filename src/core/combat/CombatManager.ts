@@ -95,12 +95,13 @@ export type CombatEvent =
       /**
        * An enemy that holds its ground reacted to being hit from range: 'wary'
        * is the warning before it moves, 'aggressive' is it leaving its post,
-       * 'guard' is it settling back once it has reached the player.
+       * 'guard' is it settling back once it has reached the player. 'last_stand'
+       * is different: its last ally fell, and it has left its post for good.
        */
       type: 'stanceShifted';
       entityId: string;
       at: HexCoord;
-      stance: 'wary' | 'aggressive' | 'guard';
+      stance: 'wary' | 'aggressive' | 'guard' | 'last_stand';
     }
   | {
       /** The player turned a breached enemy on one of its allies. */
@@ -492,7 +493,12 @@ export class CombatManager {
       ? {
           ...enemy,
           moveRange: Math.max(0, enemy.moveRange - 1),
-          aggro: enemy.aggro && { ...enemy.aggro, moveRange: Math.max(0, enemy.aggro.moveRange - 1) },
+          aggro: enemy.aggro && {
+            ...enemy.aggro,
+            moveRange: Math.max(0, enemy.aggro.moveRange - 1),
+            lastStandMoveRange:
+              enemy.aggro.lastStandMoveRange === null ? null : Math.max(0, enemy.aggro.lastStandMoveRange - 1),
+          },
         }
       : enemy;
     return planEnemyTurn(acting, { grid: this.grid, player: this.player, rng: this.rng });
@@ -542,8 +548,9 @@ export class CombatManager {
 
     if (!this.canStrike(enemy)) return [];
     const events = this.enemyAttack(enemy, defense);
-    // It came for the player and got its strike in: it settles back into its guard where it stands.
-    if (enemy.aggressive && enemy.aggro) {
+    // It came for the player and got its strike in: it settles back into its guard where it
+    // stands. Unless it is the last one left: then there is no post to go back to.
+    if (enemy.aggressive && enemy.aggro && !enemy.lastStand) {
       enemy.aggressive = false;
       enemy.timesHitFromRange = 0;
       enemy.speed = enemy.aggro.guardSpeed;
@@ -756,8 +763,26 @@ export class CombatManager {
     if (outcome.killed) {
       events.push({ type: 'died', entityId: enemy.id, at });
       this.removeEnemy(enemy);
+      events.push(...this.rallyLastEnemy());
     }
     return events;
+  }
+
+  /**
+   * When an enemy's death leaves exactly one standing, and that one normally
+   * holds a post, it gives the post up and comes for the player. Without this
+   * the player could finish everything else off and then wait, turn after
+   * turn, for their resources to come back.
+   */
+  private rallyLastEnemy(): CombatEvent[] {
+    const [last, ...others] = this.enemies;
+    if (!last || others.length > 0 || last.lastStand) return [];
+    if (!last.aggro || last.aggro.lastStandMoveRange === null) return [];
+
+    last.lastStand = true;
+    last.aggressive = true;
+    last.speed = last.aggro.speed;
+    return [{ type: 'stanceShifted', entityId: last.id, at: last.position, stance: 'last_stand' }];
   }
 
   /**

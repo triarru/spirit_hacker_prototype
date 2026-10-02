@@ -133,6 +133,9 @@ export class EffectRenderer {
           if (event.stance === 'aggressive') {
             spawn(event.at, 'BREAKS POSITION!', COLOR.damageToPlayer, CALLOUT_FONT_SIZE);
           }
+          if (event.stance === 'last_stand') {
+            spawn(event.at, 'LAST STAND!', COLOR.damageToPlayer, CALLOUT_FONT_SIZE);
+          }
           break;
         case 'recovered':
           spawn(event.at, 'FIREWALL RESTORED', COLOR.muted, CALLOUT_FONT_SIZE);
