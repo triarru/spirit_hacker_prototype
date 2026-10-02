@@ -18,7 +18,7 @@ const keys = (hexes: Array<{ key(): string }>): string[] => hexes.map((hex) => h
 describe('program registry', () => {
   it('loads the six starter programs with the stats from the design', () => {
     expect(Object.keys(PROGRAMS).sort()).toEqual(
-      ['brute_force', 'firewall_up', 'incense_burn', 'nmap_scan', 'ping_flood', 'short_circuit', 'tran_yem'],
+      ['brute_force', 'firewall_up', 'incense_burn', 'nmap_scan', 'phu_chu', 'ping_flood', 'short_circuit', 'tran_yem'],
     );
     expect(getProgram('brute_force').active).toMatchObject({ damage: 20, range: 1, targeting: 'ENEMY' });
     expect(getProgram('ping_flood').active).toMatchObject({ damage: 12, range: 3, targeting: 'LINE' });
@@ -77,6 +77,8 @@ describe('modifiers', () => {
     expect(modify('addAoe', 1)).toEqual({ ...host, aoe: 1 });
     expect(modify('addFirewallDamage', 1)).toEqual({ ...host, firewallBonus: 1 });
     expect(modify('addHeal', 5).effects).toEqual([...host.effects, { type: 'heal', amount: 5 }]);
+    // RAM cost moves over to Qi, on top of whatever Qi it already cost.
+    expect(modify('payWithQi', 0)).toEqual({ ...host, ramCost: 0, qiCost: 13 });
     // The modifying program lends its own tag.
     expect(modify('takeTag', 0)).toEqual({ ...host, tag: 'SHOCK' });
   });

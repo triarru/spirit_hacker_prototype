@@ -145,5 +145,25 @@
     },
     "modifier": { "description": "Host spell hits as SHOCK instead of its own tag.", "modifyFn": "takeTag", "value": 0 },
     "passive": { "description": "A perfect parry strips 1 extra firewall bar.", "passiveFn": "parryFirewallBonus", "value": 1 }
+  },
+  "phu_chu": {
+    "name": "phu_chu()",
+    "displayName": "Phù Chú",
+    "category": "Spirit",
+    "tag": "PURE",
+    "tier": 1,
+    "resourceType": "QI",
+    "active": {
+      "apCost": 1,
+      "ramCost": 0,
+      "qiCost": 15,
+      "targeting": "ENEMY",
+      "range": 3,
+      "aoe": 0,
+      "damage": 16,
+      "effects": []
+    },
+    "modifier": { "description": "Host spell is paid for in Qi instead of RAM.", "modifyFn": "payWithQi", "value": 0 },
+    "passive": { "description": "+5 Qi each time an enemy dies.", "passiveFn": "qiPerKill", "value": 5 }
   }
 }

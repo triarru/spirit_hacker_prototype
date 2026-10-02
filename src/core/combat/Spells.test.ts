@@ -344,6 +344,87 @@ describe('firewall_up', () => {
   });
 });
 
+describe('phu_chu', () => {
+  it('is a PURE hit at range 3, paid for in Qi', () => {
+    const { combat, enemies } = setup({
+      player: at(3, 6),
+      enemies: [['guardian', at(3, 3)], ['guardian', at(3, 2)]],
+      deck: deckOf([['phu_chu']]),
+    });
+    const [near] = enemies;
+    if (!near) throw new Error('guardian missing');
+    const { damage, qiCost, tag } = getProgram('phu_chu').active;
+    expect(combat.getSpellTargets(0)).toEqual([at(3, 3)]);
+
+    combat.castSpell(0, near.position);
+
+    expect(tag).toBe('PURE');
+    expect(near.hp).toBe(near.maxHp - damage);
+    expect(combat.player.qi).toBe(combat.player.maxQi - qiCost);
+    expect(combat.player.ram).toBe(combat.player.maxRam);
+  });
+
+  it('hits a ghost on its weakness, and does damage doing it', () => {
+    const { combat, enemies } = setup({ enemies: [['ghost_process', at(3, 2)]], deck: deckOf([['phu_chu']]) });
+    const [ghost] = enemies;
+    if (!ghost) throw new Error('ghost missing');
+    expect(ghost.weakness).toBe('PURE');
+
+    expect(types(combat.castSpell(0, ghost.position))).toEqual(['spellCast', 'attacked', 'breached']);
+    expect(ghost.hp).toBe(ghost.maxHp - getProgram('phu_chu').active.damage);
+  });
+
+  it('as a modifier, moves the host spell\'s whole cost from RAM to Qi', () => {
+    const { combat } = setup({ enemies: [['guardian', at(3, 3)]], deck: deckOf([['brute_force', 'phu_chu']]) });
+    const price = getProgram('brute_force').active.ramCost;
+
+    combat.castSpell(0, at(3, 3));
+
+    expect(combat.player.ram).toBe(combat.player.maxRam);
+    expect(combat.player.qi).toBe(combat.player.maxQi - price);
+  });
+
+  it('as a modifier, lets a RAM spell be cast with no RAM left, but not with no Qi', () => {
+    const { combat } = setup({ enemies: [['guardian', at(3, 3)]], deck: deckOf([['brute_force', 'phu_chu']]) });
+    combat.player.ram = 0;
+    expect(combat.getHand()[0]?.affordable).toBe(true);
+
+    combat.player.qi = 0;
+    expect(combat.getHand()[0]?.affordable).toBe(false);
+  });
+
+  it('as a passive, gives Qi back for every enemy that dies, whatever killed it', () => {
+    const { combat, enemies } = setup({
+      enemies: [['crawler', at(3, 3)], ['guardian', at(0, 0)]],
+      deck: deckOf([['brute_force']], ['phu_chu']),
+    });
+    const [crawler] = enemies;
+    if (!crawler) throw new Error('crawler missing');
+    crawler.hp = 1;
+    combat.player.qi = 50;
+
+    const events = combat.playerAttack(crawler.id);
+
+    expect(combat.player.qi).toBe(55);
+    expect(events).toContainEqual({ type: 'regenerated', ram: 0, qi: 5 });
+  });
+
+  it('as a passive, never pushes Qi past its maximum', () => {
+    const { combat, enemies } = setup({
+      enemies: [['crawler', at(3, 3)], ['guardian', at(0, 0)]],
+      deck: deckOf([['brute_force']], ['phu_chu']),
+    });
+    const [crawler] = enemies;
+    if (!crawler) throw new Error('crawler missing');
+    crawler.hp = 1;
+
+    const events = combat.playerAttack(crawler.id);
+
+    expect(combat.player.qi).toBe(combat.player.maxQi);
+    expect(events.some((event) => event.type === 'regenerated')).toBe(false);
+  });
+});
+
 describe('incense_burn', () => {
   it('heals the caster, up to full HP', () => {
     const { combat } = setup({ enemies: [['guardian', at(0, 0)]], deck: deckOf([['incense_burn']]) });

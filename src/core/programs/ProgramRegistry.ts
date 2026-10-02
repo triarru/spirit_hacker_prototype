@@ -34,6 +34,8 @@ export const MODIFIERS: Record<string, ModifyFn> = {
     ...spec,
     effects: [...spec.effects, { type: 'heal', amount: value }],
   }),
+  // The host spell is paid for in Qi, at the same price, instead of RAM.
+  payWithQi: (spec) => ({ ...spec, ramCost: 0, qiCost: spec.qiCost + spec.ramCost }),
   // The host spell hits with the modifying program's tag instead of its own.
   takeTag: (spec, _value, tag) => ({ ...spec, tag }),
   // The extra bars ride on the damage: a spell that does none gets nothing from this.
@@ -55,6 +57,8 @@ export interface PassiveBonuses {
   weaknessFirewallBonus: number;
   /** Extra firewall bars a perfect parry strips from the attacker. */
   parryFirewallBonus: number;
+  /** Qi that comes back each time an enemy dies. */
+  qiPerKill: number;
 }
 
 export function noBonuses(): PassiveBonuses {
@@ -66,6 +70,7 @@ export function noBonuses(): PassiveBonuses {
     damageReduction: 0,
     weaknessFirewallBonus: 0,
     parryFirewallBonus: 0,
+    qiPerKill: 0,
   };
 }
 
@@ -93,6 +98,9 @@ export const PASSIVES: Record<string, PassiveFn> = {
   },
   parryFirewallBonus: (bonuses, value) => {
     bonuses.parryFirewallBonus += value;
+  },
+  qiPerKill: (bonuses, value) => {
+    bonuses.qiPerKill += value;
   },
 };
 

@@ -764,9 +764,17 @@ export class CombatManager {
     if (outcome.killed) {
       events.push({ type: 'died', entityId: enemy.id, at });
       this.removeEnemy(enemy);
-      events.push(...this.rallyLastEnemy());
+      events.push(...this.rewardKill(), ...this.rallyLastEnemy());
     }
     return events;
+  }
+
+  /** What the player gets back whenever an enemy dies, however it died. */
+  private rewardKill(): CombatEvent[] {
+    const qi = Math.min(this.deck.bonuses.qiPerKill, this.player.maxQi - this.player.qi);
+    if (qi <= 0) return [];
+    this.player.qi += qi;
+    return [{ type: 'regenerated', ram: 0, qi }];
   }
 
   /**
