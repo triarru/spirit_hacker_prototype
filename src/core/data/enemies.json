@@ -6,7 +6,8 @@
     "firewall": 2,
     "weakness": "SHOCK",
     "behavior": "patrol",
-    "attackType": "melee"
+    "moveRange": 1,
+    "attack": { "type": "melee", "damage": 10, "range": 1 }
   },
   "guardian": {
     "name": "Guardian",
@@ -15,7 +16,8 @@
     "firewall": 4,
     "weakness": "CORRUPT",
     "behavior": "guard",
-    "attackType": "melee"
+    "moveRange": 0,
+    "attack": { "type": "melee", "damage": 15, "range": 1 }
   },
   "ghost_process": {
     "name": "Ghost Process",
@@ -24,6 +26,7 @@
     "firewall": 2,
     "weakness": "PURE",
     "behavior": "random",
-    "attackType": "ranged"
+    "moveRange": 1,
+    "attack": { "type": "ranged", "damage": 8, "range": 2 }
   }
 }

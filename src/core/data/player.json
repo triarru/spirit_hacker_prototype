@@ -3,6 +3,9 @@
   "maxHp": 100,
   "speed": 5,
   "maxAp": 3,
+  "apCap": 5,
   "maxRam": 50,
-  "maxQi": 30
+  "maxQi": 30,
+  "endTurnDodgeBonus": 0.15,
+  "basicAttack": { "damage": 10, "range": 1, "apCost": 1 }
 }

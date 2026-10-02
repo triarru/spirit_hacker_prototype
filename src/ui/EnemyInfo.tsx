@@ -25,6 +25,12 @@ export function EnemyInfo() {
         <dd>
           {enemy.hp} / {enemy.maxHp}
         </dd>
+        <dt>Attack</dt>
+        <dd>
+          {enemy.attackDamage} {enemy.attackType}
+        </dd>
+        <dt>Range</dt>
+        <dd>{enemy.attackRange} hex</dd>
         <dt>Speed</dt>
         <dd>{enemy.speed}</dd>
         <dt>Position</dt>

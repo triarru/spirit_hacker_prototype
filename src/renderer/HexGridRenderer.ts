@@ -11,6 +11,7 @@ const COLOR = {
   veilTear: 0xa855f7,
   moveRange: 0x22c55e,
   spellRange: 0xf97316,
+  attackTarget: 0xef4444,
   path: 0x7dd3fc,
   hover: 0xe2e8f0,
   selected: 0xfacc15,
@@ -18,6 +19,15 @@ const COLOR = {
 
 /** Colored outlines are drawn slightly inside the hex so neighbors' shared edges don't paint over them. */
 const INSET = 4;
+
+export interface RangeHighlights {
+  /** Hexes the player can walk to (green). */
+  move: HexCoord[];
+  /** Hexes a spell can reach (orange). */
+  spell: HexCoord[];
+  /** Hexes holding an enemy that a click would attack (red). */
+  attack: HexCoord[];
+}
 
 export interface PixelBounds {
   x: number;
@@ -53,16 +63,23 @@ export class HexGridRenderer {
     for (const cell of cells) this.drawSpecialTerrain(g, cell);
   }
 
-  drawRanges(moveRange: HexCoord[], spellRange: HexCoord[]): void {
+  drawRanges({ move, spell, attack }: RangeHighlights): void {
     const g = this.rangeLayer.clear();
-    // Two translucent tints on one hex blend into mud, so the spell range wins where they overlap.
-    const spellKeys = new Set(spellRange.map((hex) => hex.key()));
-    this.tint(
-      g,
-      moveRange.filter((hex) => !spellKeys.has(hex.key())),
-      COLOR.moveRange,
-    );
-    this.tint(g, spellRange, COLOR.spellRange);
+    // Two translucent tints on one hex blend into mud, so each hex gets only its
+    // highest-priority tint: attack target, then spell range, then move range.
+    const claimed = new Set<string>();
+    for (const [hexes, color] of [
+      [attack, COLOR.attackTarget],
+      [spell, COLOR.spellRange],
+      [move, COLOR.moveRange],
+    ] as const) {
+      this.tint(
+        g,
+        hexes.filter((hex) => !claimed.has(hex.key())),
+        color,
+      );
+      for (const hex of hexes) claimed.add(hex.key());
+    }
   }
 
   drawPath(path: HexCoord[]): void {

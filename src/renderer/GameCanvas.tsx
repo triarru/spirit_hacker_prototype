@@ -3,6 +3,7 @@ import { Application, Container, type FederatedPointerEvent, type Ticker } from 
 import { pixelToHex, type HexCoord } from '../core/hex/HexCoord';
 import { useCombatStore } from '../stores/useCombatStore';
 import { selectSpellRange, useUIStore } from '../stores/useUIStore';
+import { EffectRenderer } from './EffectRenderer';
 import { EntityRenderer } from './EntityRenderer';
 import { HexGridRenderer } from './HexGridRenderer';
 
@@ -19,7 +20,8 @@ function mountGame(app: Application): () => void {
   const world = new Container();
   const gridRenderer = new HexGridRenderer();
   const entityRenderer = new EntityRenderer();
-  world.addChild(gridRenderer.container, entityRenderer.container);
+  const effectRenderer = new EffectRenderer();
+  world.addChild(gridRenderer.container, entityRenderer.container, effectRenderer.container);
   app.stage.addChild(world);
 
   const layout = (): void => {
@@ -45,11 +47,17 @@ function mountGame(app: Application): () => void {
   const drawRanges = (): void => {
     const combat = useCombatStore.getState();
     const ui = useUIStore.getState();
-    gridRenderer.drawRanges(
-      // Mid-walk the range would be redrawn on every step; hide it until the player stops.
-      combat.busy ? [] : combat.moveRange,
-      selectSpellRange(combat, ui.spellPreviewRange),
-    );
+    // Mid-action these would be redrawn on every step; hide them until input is accepted again.
+    const idle = !combat.busy;
+    gridRenderer.drawRanges({
+      move: idle ? combat.moveRange : [],
+      spell: selectSpellRange(combat, ui.spellPreviewRange),
+      attack: idle
+        ? combat.enemies
+            .filter((enemy) => combat.attackableEnemyIds.includes(enemy.id))
+            .map((enemy) => enemy.position)
+        : [],
+    });
   };
 
   const drawCursor = (): void => {
@@ -75,6 +83,10 @@ function mountGame(app: Application): () => void {
     syncEntities();
     drawRanges();
     drawCursor();
+    // Events describe one change; replay them only when a new batch arrives.
+    if (state.lastEvents !== previous.lastEvents) {
+      effectRenderer.play(state.lastEvents, state.player.id);
+    }
   });
   const unsubscribeUI = useUIStore.subscribe((state, previous) => {
     if (state.spellPreviewRange !== previous.spellPreviewRange) drawRanges();
@@ -100,7 +112,11 @@ function mountGame(app: Application): () => void {
   app.stage.on('pointerdown', (event) => useUIStore.getState().clickHex(hexUnderPointer(event)));
   app.stage.on('pointerleave', () => useUIStore.getState().setHoveredHex(null));
 
-  const tick = (ticker: Ticker): void => entityRenderer.update(ticker.deltaMS / 1000);
+  const tick = (ticker: Ticker): void => {
+    const deltaSeconds = ticker.deltaMS / 1000;
+    entityRenderer.update(deltaSeconds);
+    effectRenderer.update(deltaSeconds);
+  };
   app.ticker.add(tick);
   app.renderer.on('resize', layout);
 

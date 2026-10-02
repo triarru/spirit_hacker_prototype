@@ -11,6 +11,8 @@ const ENEMY_BORDER = { width: 2, color: 0x7f1d1d } as const;
 /** Half-extent of every placeholder shape, in px. */
 const RADIUS = 24;
 
+const HP_BAR = { width: 40, height: 5, offsetY: -RADIUS - 11, back: 0x1e293b, fill: 0xef4444 } as const;
+
 type ShapeDrawer = (g: Graphics) => void;
 
 /** Placeholder art per enemies.json id. Shapes are drawn around (0, 0). */
@@ -49,7 +51,11 @@ interface Tween {
 }
 
 interface EntityView {
-  shape: Graphics;
+  root: Container;
+  /** Enemies only; the player's HP lives in the HUD. */
+  hpBar: Graphics | null;
+  /** HP the bar currently shows, to skip redraws when nothing changed. */
+  shownHp: number;
   /** Key of the hex this view is at, or travelling to. */
   hexKey: string;
   tween: Tween | null;
@@ -68,29 +74,34 @@ export class EntityRenderer {
       const target = hexToPixel(entity.position);
       const hexKey = entity.position.key();
 
-      const view = this.views.get(entity.id);
+      let view = this.views.get(entity.id);
       if (!view) {
-        const shape = this.createShape(entity);
-        shape.position.set(target.x, target.y);
-        this.container.addChild(shape);
-        this.views.set(entity.id, { shape, hexKey, tween: null });
+        view = this.createView(entity, hexKey);
+        view.root.position.set(target.x, target.y);
+        this.container.addChild(view.root);
+        this.views.set(entity.id, view);
       } else if (view.hexKey !== hexKey) {
         // Start from wherever the shape is right now, so a step that arrives
         // a frame early never makes it jump.
         view.tween = {
-          fromX: view.shape.x,
-          fromY: view.shape.y,
+          fromX: view.root.x,
+          fromY: view.root.y,
           toX: target.x,
           toY: target.y,
           elapsed: 0,
         };
         view.hexKey = hexKey;
       }
+
+      if (view.hpBar && view.shownHp !== entity.hp) {
+        drawHpBar(view.hpBar, entity.hp / entity.maxHp);
+        view.shownHp = entity.hp;
+      }
     }
 
     for (const [id, view] of this.views) {
       if (alive.has(id)) continue;
-      view.shape.destroy();
+      view.root.destroy({ children: true });
       this.views.delete(id);
     }
   }
@@ -103,7 +114,7 @@ export class EntityRenderer {
 
       tween.elapsed += deltaSeconds;
       const t = Math.min(tween.elapsed / timing.moveSecondsPerHex, 1);
-      view.shape.position.set(
+      view.root.position.set(
         tween.fromX + (tween.toX - tween.fromX) * t,
         tween.fromY + (tween.toY - tween.fromY) * t,
       );
@@ -111,13 +122,28 @@ export class EntityRenderer {
     }
   }
 
-  private createShape(entity: Entity): Graphics {
-    const g = new Graphics();
+  private createView(entity: Entity, hexKey: string): EntityView {
+    const root = new Container();
+    const shape = new Graphics();
+    root.addChild(shape);
+
     if (entity.kind === 'player') {
-      drawPlayer(g);
-    } else {
-      (ENEMY_SHAPES[entity.typeId] ?? drawUnknownEnemy)(g);
+      drawPlayer(shape);
+      return { root, hpBar: null, shownHp: entity.hp, hexKey, tween: null };
     }
-    return g;
+
+    (ENEMY_SHAPES[entity.typeId] ?? drawUnknownEnemy)(shape);
+    // A sibling of the shape, not a child, so a translucent enemy keeps a solid bar.
+    const hpBar = new Graphics();
+    drawHpBar(hpBar, entity.hp / entity.maxHp);
+    root.addChild(hpBar);
+    return { root, hpBar, shownHp: entity.hp, hexKey, tween: null };
   }
+}
+
+function drawHpBar(g: Graphics, fraction: number): void {
+  const { width, height, offsetY, back, fill } = HP_BAR;
+  g.clear();
+  g.rect(-width / 2, offsetY, width, height).fill({ color: back });
+  if (fraction > 0) g.rect(-width / 2, offsetY, width * fraction, height).fill({ color: fill });
 }

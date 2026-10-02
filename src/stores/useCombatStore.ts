@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { affordablePath, moveRange, stepPlayer } from '../core/combat/Movement';
+import { CombatManager, type CombatEvent, type CombatPhase } from '../core/combat/CombatManager';
 import { loadRoom } from '../core/data/RoomLoader';
 import timing from '../core/data/timing.json';
 import type { Enemy } from '../core/entities/Enemy';
@@ -10,59 +10,106 @@ import type { HexGrid } from '../core/hex/HexGrid';
 const ROOM_ID = 'prototype_room';
 
 /**
- * The live game state. Core logic mutates it in place; nothing outside this
- * module reads it directly — everyone else sees the snapshots published below.
+ * The live game. Core logic mutates it in place; nothing outside this module
+ * reads it directly — everyone else sees the snapshots published below.
  */
-const room = loadRoom(ROOM_ID);
+const combat = new CombatManager(loadRoom(ROOM_ID));
 
 interface CombatSnapshot {
   grid: HexGrid;
   player: Player;
   enemies: Enemy[];
+  phase: CombatPhase;
+  turn: number;
   moveRange: HexCoord[];
+  /** Enemies a click would attack right now. */
+  attackableEnemyIds: string[];
 }
 
 export interface CombatState extends CombatSnapshot {
   /** An action is still playing out; input is ignored until it finishes. */
   busy: boolean;
+  /** What the most recent change consisted of. Replaced, never appended to. */
+  lastEvents: CombatEvent[];
   /** Walks the player to `hex` one step at a time. Does nothing if it is out of reach. */
   movePlayerTo: (hex: HexCoord) => Promise<void>;
+  /** Basic attack. Does nothing if the enemy is out of range or the player cannot pay. */
+  attackEnemy: (enemyId: string) => void;
+  /** Ends the player turn and plays out the enemy turn. */
+  endTurn: () => Promise<void>;
 }
 
 /** Copies of the live entities, so subscribers see a new reference whenever something changed. */
 function snapshot(): CombatSnapshot {
   return {
-    grid: room.grid,
-    player: { ...room.player },
-    enemies: room.enemies.map((enemy) => ({ ...enemy })),
-    moveRange: moveRange(room.grid, room.player),
+    grid: combat.grid,
+    player: { ...combat.player },
+    enemies: combat.enemies.map((enemy) => ({ ...enemy })),
+    phase: combat.phase,
+    turn: combat.turn,
+    moveRange: combat.getMoveRange(),
+    attackableEnemyIds: combat.getAttackableEnemies().map((enemy) => enemy.id),
   };
 }
 
 const sleep = (seconds: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, seconds * 1000));
 
-export const useCombatStore = create<CombatState>((set, get) => ({
-  ...snapshot(),
-  busy: false,
+export const useCombatStore = create<CombatState>((set, get) => {
+  /** Publishes the state after a change. Returns false when nothing happened. */
+  const publish = (events: CombatEvent[]): boolean => {
+    if (events.length === 0) return false;
+    set({ ...snapshot(), lastEvents: events });
+    return true;
+  };
 
-  movePlayerTo: async (hex) => {
-    if (get().busy) return;
-    const path = affordablePath(room.grid, room.player, hex);
-    if (path.length < 2) return;
+  return {
+    ...snapshot(),
+    busy: false,
+    lastEvents: [],
 
-    set({ busy: true });
-    for (const step of path.slice(1)) {
-      if (!stepPlayer(room.grid, room.player, step)) break;
-      set(snapshot());
-      await sleep(timing.moveSecondsPerHex);
-    }
-    set({ busy: false });
-  },
-}));
+    movePlayerTo: async (hex) => {
+      if (get().busy) return;
+      const path = combat.getPathTo(hex);
+      if (path.length < 2) return;
+
+      set({ busy: true });
+      for (const step of path.slice(1)) {
+        if (!publish(combat.stepPlayer(step))) break;
+        await sleep(timing.moveSecondsPerHex);
+      }
+      set({ busy: false });
+    },
+
+    attackEnemy: (enemyId) => {
+      if (get().busy) return;
+      publish(combat.playerAttack(enemyId));
+    },
+
+    endTurn: async () => {
+      if (get().busy) return;
+      // Outside the player turn this yields no events, and there is nothing to play out.
+      if (!publish(combat.endPlayerTurn())) return;
+      set({ busy: true });
+
+      for (const enemyId of combat.getEnemyTurnOrder()) {
+        for (const action of combat.planEnemyTurn(enemyId)) {
+          await sleep(timing.enemyActionDelaySeconds);
+          publish(combat.applyEnemyAction(enemyId, action));
+        }
+        // A killing blow ends the fight on the spot; nobody else gets to act.
+        if (combat.phase !== 'ENEMY_TURN') break;
+      }
+
+      await sleep(timing.enemyActionDelaySeconds);
+      publish(combat.endEnemyPhase());
+      set({ busy: false });
+    },
+  };
+});
 
 /** The path a click on `hex` would walk right now. Empty while busy or when out of reach. */
 export function previewPath(hex: HexCoord): HexCoord[] {
   if (useCombatStore.getState().busy) return [];
-  return affordablePath(room.grid, room.player, hex);
+  return combat.getPathTo(hex);
 }

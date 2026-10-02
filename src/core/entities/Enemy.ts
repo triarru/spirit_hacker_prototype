@@ -16,6 +16,10 @@ export interface Enemy extends Entity {
   weakness: SpellTag;
   behaviorType: BehaviorType;
   attackType: AttackType;
+  attackDamage: number;
+  attackRange: number;
+  /** Hexes this enemy may move in one turn. */
+  moveRange: number;
 }
 
 interface EnemyDefinition {
@@ -25,7 +29,8 @@ interface EnemyDefinition {
   firewall: number;
   weakness: string;
   behavior: string;
-  attackType: string;
+  moveRange: number;
+  attack: { type: string; damage: number; range: number };
 }
 
 const DEFINITIONS: Record<string, EnemyDefinition> = enemiesJson;
@@ -54,6 +59,14 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
     firewallCurrent: definition.firewall,
     weakness: parseOneOf(SPELL_TAGS, definition.weakness, `weakness of ${typeId}`),
     behaviorType: parseOneOf(BEHAVIOR_TYPES, definition.behavior, `behavior of ${typeId}`),
-    attackType: parseOneOf(ATTACK_TYPES, definition.attackType, `attack type of ${typeId}`),
+    attackType: parseOneOf(ATTACK_TYPES, definition.attack.type, `attack type of ${typeId}`),
+    attackDamage: definition.attack.damage,
+    attackRange: definition.attack.range,
+    moveRange: definition.moveRange,
   };
+}
+
+/** Whether the enemy could hit `target` if it stood on `from`. */
+export function inAttackRange(enemy: Enemy, from: HexCoord, target: HexCoord): boolean {
+  return from.distance(target) <= enemy.attackRange;
 }

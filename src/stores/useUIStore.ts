@@ -33,6 +33,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     const entity = hex ? combat.grid.getEntityAt(hex) : null;
     if (entity?.kind === 'enemy') {
       set({ selectedEntityId: entity.id });
+      // Out of range or out of AP, this is a no-op and the click only selects.
+      combat.attackEnemy(entity.id);
       return;
     }
 

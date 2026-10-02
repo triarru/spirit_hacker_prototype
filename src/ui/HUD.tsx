@@ -2,6 +2,8 @@ import { useCombatStore } from '../stores/useCombatStore';
 
 export function HUD() {
   const player = useCombatStore((state) => state.player);
+  const canEndTurn = useCombatStore((state) => state.phase === 'PLAYER_TURN' && !state.busy);
+  const endTurn = useCombatStore((state) => state.endTurn);
 
   // AP above maxAp came from the bank, so the row grows to show those dots too.
   const dotCount = Math.max(player.maxAp, player.ap);
@@ -33,6 +35,9 @@ export function HUD() {
           {dots}
         </div>
       </div>
+      <button type="button" className="end-turn" disabled={!canEndTurn} onClick={() => void endTurn()}>
+        End turn
+      </button>
     </section>
   );
 }

@@ -133,11 +133,95 @@ body,
   margin-bottom: 10px;
 }
 
-.hud {
+.turn-indicator {
   top: 68px;
+  left: 20px;
+  width: 240px;
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border: 1px solid currentColor;
+  border-radius: 6px;
+  background: var(--panel);
+}
+
+.turn-indicator strong {
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+
+.turn-indicator span {
+  color: var(--text-dim);
+}
+
+.turn-player {
+  color: var(--cyan);
+}
+
+.turn-enemy {
+  color: var(--hp);
+}
+
+.hud {
+  top: 118px;
   left: 20px;
   display: grid;
   gap: 8px;
+}
+
+.end-turn {
+  margin-top: 4px;
+  padding: 6px 0;
+  border: 1px solid var(--cyan);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--cyan);
+  font: inherit;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.end-turn:hover:not(:disabled) {
+  background: rgba(34, 211, 238, 0.12);
+}
+
+.end-turn:disabled {
+  border-color: var(--border);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.game-over {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  display: grid;
+  gap: 6px;
+  padding: 24px 40px;
+  border: 1px solid currentColor;
+  border-radius: 8px;
+  background: rgba(8, 11, 18, 0.94);
+  text-align: center;
+}
+
+.game-over strong {
+  font-size: 28px;
+  letter-spacing: 0.28em;
+  text-transform: uppercase;
+}
+
+.game-over span {
+  color: var(--text-dim);
+}
+
+.game-over-victory {
+  color: var(--cyan);
+}
+
+.game-over-defeat {
+  color: var(--hp);
 }
 
 .hud-row {
