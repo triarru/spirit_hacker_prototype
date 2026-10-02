@@ -105,6 +105,8 @@ export interface CombatState extends CombatSnapshot {
    * it per frame rather than subscribing to it.
    */
   reactive: ReactiveDefense | null;
+  /** The enemy announcing an attack the player will get to react to, from just before its prompt until it lands. */
+  windingUp: string | null;
   /** What the most recent change consisted of. Replaced, never appended to. */
   lastEvents: CombatEvent[];
   /** Everything that has happened this fight, oldest first. */
@@ -177,6 +179,7 @@ export const useCombatStore = create<CombatState>((set, get) => {
     ...snapshot(),
     busy: false,
     reactive: null,
+    windingUp: null,
     lastEvents: [],
     log: [],
     loadout: starterSelection(),
@@ -250,10 +253,13 @@ export const useCombatStore = create<CombatState>((set, get) => {
         for (const action of combat.planEnemyTurn(enemyId)) {
           // A trap stops its movement, and an attack needs the player in reach: skip what is off.
           if (combat.isCancelled(enemyId, action)) continue;
+          // An attack the player can react to is announced: the attacker winds up through the pause.
+          if (combat.getDefensePrompt(enemyId, action)) set({ windingUp: enemyId });
           await sleep(timing.enemyActionDelaySeconds);
-          // An attack the player can react to waits here for their parry or dodge.
+          // Then it waits here for their parry or dodge.
           const prompt = combat.getDefensePrompt(enemyId, action);
           const defense = prompt ? await promptDefense(prompt) : null;
+          set({ windingUp: null });
           publish(combat.applyEnemyAction(enemyId, action, defense));
         }
         // A killing blow ends the fight on the spot; nobody else gets to act.
@@ -272,7 +278,7 @@ export const useCombatStore = create<CombatState>((set, get) => {
 
       combat = newCombat();
       names = namesOf(combat);
-      set({ ...snapshot(), reactive: null, lastEvents: [], log: [] });
+      set({ ...snapshot(), reactive: null, windingUp: null, lastEvents: [], log: [] });
     },
   };
 });

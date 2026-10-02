@@ -178,7 +178,8 @@ function mountGame(app: Application): () => void {
     entityRenderer.update(deltaSeconds);
     effectRenderer.update(deltaSeconds);
     // The prompt's clock runs outside the store, so it is read fresh every frame.
-    const { reactive, player } = useCombatStore.getState();
+    const { reactive, player, windingUp } = useCombatStore.getState();
+    entityRenderer.setWindingUp(windingUp);
     promptRenderer.draw(reactive, player.position);
     updateCamera(deltaSeconds);
   };

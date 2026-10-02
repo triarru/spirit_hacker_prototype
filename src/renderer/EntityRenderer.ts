@@ -20,6 +20,8 @@ const PIP = { width: 7, height: 4, gap: 2, top: -RADIUS - 8, intact: 0x22d3ee, b
 const WEAKNESS_DOT_RADIUS = 2.5;
 const BREACH_RING = { radius: RADIUS + 7, color: 0xffffff } as const;
 const STUN_RING = { radius: RADIUS + 4, color: 0xfacc15 } as const;
+/** An enemy about to strike swells and is ringed, in step with the pulse. */
+const WIND_UP = { radius: RADIUS + 10, color: 0xf97316, swell: 0.18 } as const;
 
 type ShapeDrawer = (g: Graphics) => void;
 
@@ -61,8 +63,10 @@ interface Tween {
 /** The parts of an enemy view that redraw when its numbers change. Absent for the player. */
 interface EnemyStatus {
   strip: Graphics;
+  shape: Graphics;
   breachRing: Graphics;
   stunRing: Graphics;
+  windUpRing: Graphics;
   flash: Graphics;
   /** What the strip currently shows, to skip redraws when nothing changed. */
   shown: string;
@@ -81,6 +85,8 @@ interface EntityView {
 export class EntityRenderer {
   readonly container = new Container();
   private readonly views = new Map<string, EntityView>();
+  /** The enemy winding up for an attack, and how long it has been at it. */
+  private windingUp: { entityId: string; elapsed: number } | null = null;
 
   /** Reconciles the drawn shapes with the entities: adds new, moves existing, removes gone. */
   sync(player: Player, enemies: Enemy[]): void {
@@ -111,9 +117,17 @@ export class EntityRenderer {
     if (status) status.flashElapsed = 0;
   }
 
-  /** Advances movement tweens and flashes. Call once per frame. */
+  /** Marks the enemy that is about to strike, or none. Safe to call every frame. */
+  setWindingUp(entityId: string | null): void {
+    if (entityId === (this.windingUp?.entityId ?? null)) return;
+    this.windingUp = entityId === null ? null : { entityId, elapsed: 0 };
+  }
+
+  /** Advances movement tweens, flashes and the wind-up pulse. Call once per frame. */
   update(deltaSeconds: number): void {
-    for (const view of this.views.values()) {
+    if (this.windingUp) this.windingUp.elapsed += deltaSeconds;
+
+    for (const [entityId, view] of this.views) {
       const tween = view.tween;
       if (tween) {
         tween.elapsed += deltaSeconds;
@@ -131,6 +145,17 @@ export class EntityRenderer {
         const t = Math.min(status.flashElapsed / timing.breachFlashSeconds, 1);
         status.flash.alpha = 0.9 * (1 - t);
         if (t >= 1) status.flashElapsed = null;
+      }
+
+      if (status) {
+        // One swell per pulse: out and back, so it reads as a wind-up rather than a growth.
+        const pulse =
+          this.windingUp?.entityId === entityId
+            ? Math.abs(Math.sin((this.windingUp.elapsed / timing.windUpPulseSeconds) * Math.PI))
+            : 0;
+        status.shape.scale.set(1 + WIND_UP.swell * pulse);
+        status.windUpRing.visible = this.windingUp?.entityId === entityId;
+        status.windUpRing.alpha = 0.35 + 0.65 * pulse;
       }
     }
   }
@@ -182,16 +207,20 @@ export class EntityRenderer {
     stunRing.circle(0, 0, STUN_RING.radius).stroke({ width: 2, color: STUN_RING.color });
     stunRing.visible = false;
 
+    const windUpRing = new Graphics();
+    windUpRing.circle(0, 0, WIND_UP.radius).stroke({ width: 3, color: WIND_UP.color });
+    windUpRing.visible = false;
+
     const flash = new Graphics();
     flash.circle(0, 0, RADIUS + 2).fill({ color: 0xffffff });
     flash.alpha = 0;
 
     // Siblings of the shape, not children, so a translucent enemy keeps solid bars.
     const strip = new Graphics();
-    root.addChild(breachRing, stunRing, shape, flash, strip);
+    root.addChild(breachRing, stunRing, windUpRing, shape, flash, strip);
     return {
       root,
-      status: { strip, breachRing, stunRing, flash, shown: '', flashElapsed: null },
+      status: { strip, shape, breachRing, stunRing, windUpRing, flash, shown: '', flashElapsed: null },
       hexKey,
       tween: null,
     };
