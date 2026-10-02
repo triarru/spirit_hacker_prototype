@@ -13,6 +13,10 @@ export interface Enemy extends Entity {
   kind: 'enemy';
   firewallMax: number;
   firewallCurrent: number;
+  /** Firewall is down: the enemy loses turns and takes extra damage until it recovers. */
+  breached: boolean;
+  /** Turns a breached enemy still has to sit out before it can recover. */
+  breachSkipsLeft: number;
   weakness: SpellTag;
   behaviorType: BehaviorType;
   attackType: AttackType;
@@ -57,6 +61,8 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
     speed: definition.speed,
     firewallMax: definition.firewall,
     firewallCurrent: definition.firewall,
+    breached: false,
+    breachSkipsLeft: 0,
     weakness: parseOneOf(SPELL_TAGS, definition.weakness, `weakness of ${typeId}`),
     behaviorType: parseOneOf(BEHAVIOR_TYPES, definition.behavior, `behavior of ${typeId}`),
     attackType: parseOneOf(ATTACK_TYPES, definition.attack.type, `attack type of ${typeId}`),

@@ -76,7 +76,7 @@ function mountGame(app: Application): () => void {
 
   const syncEntities = (): void => {
     const { player, enemies } = useCombatStore.getState();
-    entityRenderer.sync([player, ...enemies]);
+    entityRenderer.sync(player, enemies);
   };
 
   drawTerrain();
@@ -93,6 +93,9 @@ function mountGame(app: Application): () => void {
     // Events describe one change; replay them only when a new batch arrives.
     if (state.lastEvents !== previous.lastEvents) {
       effectRenderer.play(state.lastEvents, state.player.id);
+      for (const event of state.lastEvents) {
+        if (event.type === 'breached') entityRenderer.flash(event.entityId);
+      }
     }
   });
   const unsubscribeUI = useUIStore.subscribe((state, previous) => {
@@ -116,8 +119,16 @@ function mountGame(app: Application): () => void {
   app.stage.eventMode = 'static';
   app.stage.hitArea = app.screen;
   app.stage.on('pointermove', (event) => useUIStore.getState().setHoveredHex(hexUnderPointer(event)));
-  app.stage.on('pointerdown', (event) => useUIStore.getState().clickHex(hexUnderPointer(event)));
+  app.stage.on('pointerdown', (event) => {
+    const ui = useUIStore.getState();
+    // Right-click selects without acting, so an adjacent enemy can be inspected without attacking it.
+    if (event.button === 2) ui.selectHex(hexUnderPointer(event));
+    else ui.clickHex(hexUnderPointer(event));
+  });
   app.stage.on('pointerleave', () => useUIStore.getState().setHoveredHex(null));
+
+  const suppressContextMenu = (event: Event): void => event.preventDefault();
+  app.canvas.addEventListener('contextmenu', suppressContextMenu);
 
   const tick = (ticker: Ticker): void => {
     const deltaSeconds = ticker.deltaMS / 1000;
@@ -135,6 +146,7 @@ function mountGame(app: Application): () => void {
     unsubscribeUI();
     app.ticker.remove(tick);
     app.renderer.off('resize', layout);
+    app.canvas.removeEventListener('contextmenu', suppressContextMenu);
   };
 }
 

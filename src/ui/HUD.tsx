@@ -36,6 +36,15 @@ export function HUD() {
         </span>
       </div>
       <div className="hud-row">
+        <span className="hud-label">RAM</span>
+        <div className="bar" role="img" aria-label={`RAM ${player.ram} of ${player.maxRam}`}>
+          <div className="bar-fill bar-ram" style={{ width: `${(player.ram / player.maxRam) * 100}%` }} />
+        </div>
+        <span className="hud-value">
+          {player.ram}/{player.maxRam}
+        </span>
+      </div>
+      <div className="hud-row">
         <span className="hud-label">AP</span>
         <div className="ap-dots" role="img" aria-label={apLabel}>
           {dots}

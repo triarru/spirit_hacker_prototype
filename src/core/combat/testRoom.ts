@@ -3,6 +3,7 @@ import { createEnemy } from '../entities/Enemy';
 import { createPlayer } from '../entities/Player';
 import { HexCoord } from '../hex/HexCoord';
 import { HexGrid } from '../hex/HexGrid';
+import type { CombatEvent, CombatManager } from './CombatManager';
 
 /** Offset-coordinate shorthand. */
 export const at = (col: number, row: number): HexCoord => HexCoord.fromOffset(col, row);
@@ -36,6 +37,22 @@ export function makeRoom({
   });
 
   return { grid, player, enemies };
+}
+
+/**
+ * Plays out the whole enemy turn the way the store does, minus the delays and
+ * the reactive-defense prompts (every attack goes unanswered).
+ */
+export function runEnemyPhase(combat: CombatManager): CombatEvent[] {
+  const events: CombatEvent[] = [];
+  for (const enemyId of combat.getEnemyTurnOrder()) {
+    events.push(...combat.startEnemyTurn(enemyId));
+    for (const action of combat.planEnemyTurn(enemyId)) {
+      events.push(...combat.applyEnemyAction(enemyId, action));
+    }
+  }
+  events.push(...combat.endEnemyPhase());
+  return events;
 }
 
 /** Small deterministic PRNG (mulberry32), so randomized tests are repeatable. */

@@ -242,12 +242,15 @@ describe('enemy attacks resolved through CombatManager', () => {
     expect(combat.player.apBank).toBe(0);
   });
 
-  it('never drives the firewall below zero', () => {
+  it('breaches the attacker when the parry strips its last firewall bar', () => {
     const { combat, enemy } = attackWith('guardian', at(3, 3), null);
-    enemy.firewallCurrent = 0;
+    enemy.firewallCurrent = 1;
     const action = { type: 'attack', targetId: combat.player.id } as const;
-    combat.applyEnemyAction(enemy.id, action, { kind: 'parry', grade: 'perfect' });
+    const events = combat.applyEnemyAction(enemy.id, action, { kind: 'parry', grade: 'perfect' });
+
     expect(enemy.firewallCurrent).toBe(0);
+    expect(enemy.breached).toBe(true);
+    expect(events.map((event) => event.type)).toEqual(['defended', 'breached']);
   });
 
   it('good parry: half damage, no bonus', () => {

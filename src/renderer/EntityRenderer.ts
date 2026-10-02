@@ -1,7 +1,10 @@
 import { Container, Graphics } from 'pixi.js';
 import timing from '../core/data/timing.json';
+import type { Enemy } from '../core/entities/Enemy';
 import type { Entity } from '../core/entities/Entity';
+import type { Player } from '../core/entities/Player';
 import { hexToPixel } from '../core/hex/HexCoord';
+import { TAG_COLOR } from '../theme';
 
 const PLAYER_COLOR = 0x3b82f6;
 const ENEMY_COLOR = 0xef4444;
@@ -11,7 +14,11 @@ const ENEMY_BORDER = { width: 2, color: 0x7f1d1d } as const;
 /** Half-extent of every placeholder shape, in px. */
 const RADIUS = 24;
 
-const HP_BAR = { width: 40, height: 5, offsetY: -RADIUS - 11, back: 0x1e293b, fill: 0xef4444 } as const;
+/** The status strip above an enemy: HP bar, then a row of firewall pips with the weakness dot. */
+const HP_BAR = { width: 40, height: 5, top: -RADIUS - 15, back: 0x1e293b, fill: 0xef4444 } as const;
+const PIP = { width: 7, height: 4, gap: 2, top: -RADIUS - 8, intact: 0x22d3ee, broken: 0x1e293b } as const;
+const WEAKNESS_DOT_RADIUS = 2.5;
+const BREACH_RING = { radius: RADIUS + 7, color: 0xffffff } as const;
 
 type ShapeDrawer = (g: Graphics) => void;
 
@@ -50,12 +57,20 @@ interface Tween {
   elapsed: number;
 }
 
+/** The parts of an enemy view that redraw when its numbers change. Absent for the player. */
+interface EnemyStatus {
+  strip: Graphics;
+  breachRing: Graphics;
+  flash: Graphics;
+  /** What the strip currently shows, to skip redraws when nothing changed. */
+  shown: string;
+  /** Seconds into the breach flash, or null when not flashing. */
+  flashElapsed: number | null;
+}
+
 interface EntityView {
   root: Container;
-  /** Enemies only; the player's HP lives in the HUD. */
-  hpBar: Graphics | null;
-  /** HP the bar currently shows, to skip redraws when nothing changed. */
-  shownHp: number;
+  status: EnemyStatus | null;
   /** Key of the hex this view is at, or travelling to. */
   hexKey: string;
   tween: Tween | null;
@@ -65,38 +80,14 @@ export class EntityRenderer {
   readonly container = new Container();
   private readonly views = new Map<string, EntityView>();
 
-  /** Reconciles the drawn shapes with the entity list: adds new, moves existing, removes gone. */
-  sync(entities: Entity[]): void {
+  /** Reconciles the drawn shapes with the entities: adds new, moves existing, removes gone. */
+  sync(player: Player, enemies: Enemy[]): void {
     const alive = new Set<string>();
 
-    for (const entity of entities) {
-      alive.add(entity.id);
-      const target = hexToPixel(entity.position);
-      const hexKey = entity.position.key();
-
-      let view = this.views.get(entity.id);
-      if (!view) {
-        view = this.createView(entity, hexKey);
-        view.root.position.set(target.x, target.y);
-        this.container.addChild(view.root);
-        this.views.set(entity.id, view);
-      } else if (view.hexKey !== hexKey) {
-        // Start from wherever the shape is right now, so a step that arrives
-        // a frame early never makes it jump.
-        view.tween = {
-          fromX: view.root.x,
-          fromY: view.root.y,
-          toX: target.x,
-          toY: target.y,
-          elapsed: 0,
-        };
-        view.hexKey = hexKey;
-      }
-
-      if (view.hpBar && view.shownHp !== entity.hp) {
-        drawHpBar(view.hpBar, entity.hp / entity.maxHp);
-        view.shownHp = entity.hp;
-      }
+    this.place(player, alive);
+    for (const enemy of enemies) {
+      const view = this.place(enemy, alive);
+      if (view.status) updateStatus(view.status, enemy);
     }
 
     for (const [id, view] of this.views) {
@@ -106,44 +97,118 @@ export class EntityRenderer {
     }
   }
 
-  /** Advances movement tweens. Call once per frame. */
+  /** Flashes an enemy white, for the moment its firewall breaks. */
+  flash(entityId: string): void {
+    const status = this.views.get(entityId)?.status;
+    if (status) status.flashElapsed = 0;
+  }
+
+  /** Advances movement tweens and flashes. Call once per frame. */
   update(deltaSeconds: number): void {
     for (const view of this.views.values()) {
       const tween = view.tween;
-      if (!tween) continue;
+      if (tween) {
+        tween.elapsed += deltaSeconds;
+        const t = Math.min(tween.elapsed / timing.moveSecondsPerHex, 1);
+        view.root.position.set(
+          tween.fromX + (tween.toX - tween.fromX) * t,
+          tween.fromY + (tween.toY - tween.fromY) * t,
+        );
+        if (t >= 1) view.tween = null;
+      }
 
-      tween.elapsed += deltaSeconds;
-      const t = Math.min(tween.elapsed / timing.moveSecondsPerHex, 1);
-      view.root.position.set(
-        tween.fromX + (tween.toX - tween.fromX) * t,
-        tween.fromY + (tween.toY - tween.fromY) * t,
-      );
-      if (t >= 1) view.tween = null;
+      const status = view.status;
+      if (status && status.flashElapsed !== null) {
+        status.flashElapsed += deltaSeconds;
+        const t = Math.min(status.flashElapsed / timing.breachFlashSeconds, 1);
+        status.flash.alpha = 0.9 * (1 - t);
+        if (t >= 1) status.flashElapsed = null;
+      }
     }
+  }
+
+  /** Creates the entity's view if needed and starts it moving toward the entity's hex. */
+  private place(entity: Player | Enemy, alive: Set<string>): EntityView {
+    alive.add(entity.id);
+    const target = hexToPixel(entity.position);
+    const hexKey = entity.position.key();
+
+    let view = this.views.get(entity.id);
+    if (!view) {
+      view = this.createView(entity, hexKey);
+      view.root.position.set(target.x, target.y);
+      this.container.addChild(view.root);
+      this.views.set(entity.id, view);
+    } else if (view.hexKey !== hexKey) {
+      // Start from wherever the shape is right now, so a step that arrives
+      // a frame early never makes it jump.
+      view.tween = {
+        fromX: view.root.x,
+        fromY: view.root.y,
+        toX: target.x,
+        toY: target.y,
+        elapsed: 0,
+      };
+      view.hexKey = hexKey;
+    }
+    return view;
   }
 
   private createView(entity: Entity, hexKey: string): EntityView {
     const root = new Container();
     const shape = new Graphics();
-    root.addChild(shape);
 
     if (entity.kind === 'player') {
       drawPlayer(shape);
-      return { root, hpBar: null, shownHp: entity.hp, hexKey, tween: null };
+      root.addChild(shape);
+      return { root, status: null, hexKey, tween: null };
     }
 
     (ENEMY_SHAPES[entity.typeId] ?? drawUnknownEnemy)(shape);
-    // A sibling of the shape, not a child, so a translucent enemy keeps a solid bar.
-    const hpBar = new Graphics();
-    drawHpBar(hpBar, entity.hp / entity.maxHp);
-    root.addChild(hpBar);
-    return { root, hpBar, shownHp: entity.hp, hexKey, tween: null };
+
+    const breachRing = new Graphics();
+    breachRing.circle(0, 0, BREACH_RING.radius).stroke({ width: 2, color: BREACH_RING.color });
+    breachRing.visible = false;
+
+    const flash = new Graphics();
+    flash.circle(0, 0, RADIUS + 2).fill({ color: 0xffffff });
+    flash.alpha = 0;
+
+    // Siblings of the shape, not children, so a translucent enemy keeps solid bars.
+    const strip = new Graphics();
+    root.addChild(breachRing, shape, flash, strip);
+    return {
+      root,
+      status: { strip, breachRing, flash, shown: '', flashElapsed: null },
+      hexKey,
+      tween: null,
+    };
   }
 }
 
-function drawHpBar(g: Graphics, fraction: number): void {
-  const { width, height, offsetY, back, fill } = HP_BAR;
-  g.clear();
-  g.rect(-width / 2, offsetY, width, height).fill({ color: back });
-  if (fraction > 0) g.rect(-width / 2, offsetY, width * fraction, height).fill({ color: fill });
+function updateStatus(status: EnemyStatus, enemy: Enemy): void {
+  const showing = `${enemy.hp}/${enemy.firewallCurrent}/${enemy.breached}`;
+  if (status.shown === showing) return;
+  status.shown = showing;
+  status.breachRing.visible = enemy.breached;
+
+  const g = status.strip.clear();
+
+  g.rect(-HP_BAR.width / 2, HP_BAR.top, HP_BAR.width, HP_BAR.height).fill({ color: HP_BAR.back });
+  const hpWidth = HP_BAR.width * (enemy.hp / enemy.maxHp);
+  if (hpWidth > 0) {
+    g.rect(-HP_BAR.width / 2, HP_BAR.top, hpWidth, HP_BAR.height).fill({ color: HP_BAR.fill });
+  }
+
+  const rowWidth = enemy.firewallMax * PIP.width + (enemy.firewallMax - 1) * PIP.gap;
+  for (let index = 0; index < enemy.firewallMax; index++) {
+    const x = -rowWidth / 2 + index * (PIP.width + PIP.gap);
+    const intact = index < enemy.firewallCurrent;
+    g.rect(x, PIP.top, PIP.width, PIP.height).fill({ color: intact ? PIP.intact : PIP.broken });
+  }
+
+  // The weakness: hit with this tag and the firewall loses two pips instead of one.
+  g.circle(rowWidth / 2 + PIP.gap + WEAKNESS_DOT_RADIUS + 1, PIP.top + PIP.height / 2, WEAKNESS_DOT_RADIUS).fill({
+    color: TAG_COLOR[enemy.weakness],
+  });
 }

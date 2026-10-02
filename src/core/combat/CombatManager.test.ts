@@ -1,25 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { loadRoom } from '../data/RoomLoader';
 import { PLAYER_DATA } from '../entities/Player';
-import { CombatManager, type CombatEvent } from './CombatManager';
-import { at, makeRoom, seededRng } from './testRoom';
+import { CombatManager } from './CombatManager';
+import { at, makeRoom, runEnemyPhase, seededRng } from './testRoom';
 import { turnOrder } from './TurnManager';
 
 const { basicAttack, apCap, endTurnDodgeBonus } = PLAYER_DATA;
 const NEVER_DODGE = (): number => 0.999;
 const ALWAYS_DODGE = (): number => 0;
-
-/** Plays out the whole enemy turn the way the store does, minus the delays. */
-function runEnemyPhase(combat: CombatManager): CombatEvent[] {
-  const events: CombatEvent[] = [];
-  for (const enemyId of combat.getEnemyTurnOrder()) {
-    for (const action of combat.planEnemyTurn(enemyId)) {
-      events.push(...combat.applyEnemyAction(enemyId, action));
-    }
-  }
-  events.push(...combat.endEnemyPhase());
-  return events;
-}
 
 describe('player turn', () => {
   it('starts on the player turn with full AP', () => {
@@ -48,6 +36,7 @@ describe('player turn', () => {
         at: at(3, 3),
         damage: basicAttack.damage,
         dodged: false,
+        amplified: false,
       },
     ]);
   });

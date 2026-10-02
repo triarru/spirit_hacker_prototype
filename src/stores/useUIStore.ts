@@ -11,7 +11,10 @@ interface UIState {
   spellPreviewRange: number | null;
 
   setHoveredHex: (hex: HexCoord | null) => void;
+  /** Primary click: attack or select an enemy, or walk to a hex. */
   clickHex: (hex: HexCoord | null) => void;
+  /** Secondary click: select the enemy on `hex` without acting on it. */
+  selectHex: (hex: HexCoord | null) => void;
   setSpellPreviewRange: (range: number | null) => void;
 }
 
@@ -42,6 +45,13 @@ export const useUIStore = create<UIState>((set, get) => ({
 
     set({ selectedEntityId: null });
     if (hex) void combat.movePlayerTo(hex);
+  },
+
+  selectHex: (hex) => {
+    const combat = useCombatStore.getState();
+    if (combat.reactive) return;
+    const entity = hex ? combat.grid.getEntityAt(hex) : null;
+    set({ selectedEntityId: entity?.kind === 'enemy' ? entity.id : null });
   },
 
   setSpellPreviewRange: (range) => set({ spellPreviewRange: range }),

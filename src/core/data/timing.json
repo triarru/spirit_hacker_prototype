@@ -1,5 +1,6 @@
 {
   "moveSecondsPerHex": 0.15,
   "enemyActionDelaySeconds": 0.45,
-  "damagePopupSeconds": 0.9
+  "damagePopupSeconds": 0.9,
+  "breachFlashSeconds": 0.5
 }

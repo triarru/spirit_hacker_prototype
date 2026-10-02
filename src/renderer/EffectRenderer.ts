@@ -9,6 +9,10 @@ const COLOR = {
   dodge: 0x7dd3fc,
   perfect: 0x4ade80,
   good: 0xfacc15,
+  amplified: 0xfb923c,
+  breach: 0xffffff,
+  virus: 0xc084fc,
+  muted: 0x94a3b8,
   outline: 0x0b0f17,
 } as const;
 
@@ -19,6 +23,8 @@ const RISE = 34;
 const STACK_SPACING = 24;
 
 const DAMAGE_FONT_SIZE = 22;
+/** Damage multiplied by a breach reads bigger. */
+const AMPLIFIED_FONT_SIZE = 28;
 const CALLOUT_FONT_SIZE = 15;
 
 interface Popup {
@@ -52,16 +58,36 @@ export class EffectRenderer {
     };
 
     for (const event of events) {
-      if (event.type === 'defended') {
-        const color = event.grade === 'perfect' ? COLOR.perfect : COLOR.good;
-        spawn(event.at, defendedLabel(event), color, CALLOUT_FONT_SIZE);
-      } else if (event.type === 'attacked') {
-        if (event.dodged) {
-          spawn(event.at, 'DODGE', COLOR.dodge, DAMAGE_FONT_SIZE);
-        } else {
-          const color = event.targetId === playerId ? COLOR.damageToPlayer : COLOR.damageToEnemy;
-          spawn(event.at, `-${event.damage}`, color, DAMAGE_FONT_SIZE);
+      switch (event.type) {
+        case 'defended': {
+          const color = event.grade === 'perfect' ? COLOR.perfect : COLOR.good;
+          spawn(event.at, defendedLabel(event), color, CALLOUT_FONT_SIZE);
+          break;
         }
+        case 'attacked':
+          if (event.dodged) {
+            spawn(event.at, 'DODGE', COLOR.dodge, DAMAGE_FONT_SIZE);
+          } else if (event.amplified) {
+            spawn(event.at, `-${event.damage}`, COLOR.amplified, AMPLIFIED_FONT_SIZE);
+          } else {
+            const color = event.targetId === playerId ? COLOR.damageToPlayer : COLOR.damageToEnemy;
+            spawn(event.at, `-${event.damage}`, color, DAMAGE_FONT_SIZE);
+          }
+          break;
+        case 'breached':
+          spawn(event.at, 'BREACHED!', COLOR.breach, CALLOUT_FONT_SIZE);
+          break;
+        case 'turnSkipped':
+          spawn(event.at, 'STUNNED', COLOR.muted, CALLOUT_FONT_SIZE);
+          break;
+        case 'recovered':
+          spawn(event.at, 'FIREWALL RESTORED', COLOR.muted, CALLOUT_FONT_SIZE);
+          break;
+        case 'virusInjected':
+          spawn(event.at, 'VIRUS INJECTED', COLOR.virus, CALLOUT_FONT_SIZE);
+          break;
+        default:
+          break;
       }
     }
   }

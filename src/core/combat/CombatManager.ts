@@ -1,10 +1,17 @@
 import { planEnemyTurn, type EnemyAction } from '../ai/EnemyAI';
 import type { RoomState } from '../data/RoomLoader';
 import { inAttackRange, type Enemy } from '../entities/Enemy';
-import type { Entity } from '../entities/Entity';
 import { PLAYER_DATA, type Player } from '../entities/Player';
 import type { HexCoord } from '../hex/HexCoord';
 import type { HexGrid } from '../hex/HexGrid';
+import type { SpellTag } from '../programs/Program';
+import {
+  BREAK_RULES,
+  breachDamageMultiplier,
+  damageFirewall,
+  firewallDamageForHit,
+  tickBreach,
+} from './BreakSystem';
 import { resolveAttack, type Rng } from './CombatResolver';
 import { affordablePath, moveRange, stepPlayer } from './Movement';
 import {
@@ -29,6 +36,8 @@ export type CombatEvent =
       at: HexCoord;
       damage: number;
       dodged: boolean;
+      /** The damage was multiplied because the target was breached. */
+      amplified: boolean;
     }
   | {
       /** The player answered an attack's prompt with a parry or dodge that worked. */
@@ -40,6 +49,16 @@ export type CombatEvent =
       at: HexCoord;
       apBanked: number;
     }
+  | { /** An enemy's firewall hit zero. */ type: 'breached'; entityId: string; at: HexCoord }
+  | { /** A breached enemy got its firewall back. */ type: 'recovered'; entityId: string; at: HexCoord }
+  | { type: 'turnSkipped'; entityId: string; at: HexCoord; reason: 'breached' }
+  | {
+      /** The player turned a breached enemy on one of its allies. */
+      type: 'virusInjected';
+      entityId: string;
+      targetId: string;
+      at: HexCoord;
+    }
   | { type: 'died'; entityId: string; at: HexCoord }
   | { type: 'phaseChanged'; phase: CombatPhase };
 
@@ -49,9 +68,9 @@ export type CombatEvent =
  *
  * Every method is synchronous and returns the events it caused; an action that
  * is not legal right now changes nothing and returns no events. The enemy turn
- * is exposed one action at a time (plan, then apply) so the caller can pace
- * it, animate between actions, and run the reactive-defense prompt for an
- * attack before applying it.
+ * is exposed one step at a time (start, plan, then apply each action) so the
+ * caller can pace it, animate between actions, and run the reactive-defense
+ * prompt for an attack before applying it.
  */
 export class CombatManager {
   readonly grid: HexGrid;
@@ -61,6 +80,8 @@ export class CombatManager {
   turn = 1;
 
   private readonly rng: Rng;
+  /** Enemies sitting out the current enemy phase. */
+  private readonly skipping = new Set<string>();
 
   constructor(room: RoomState, rng: Rng = Math.random) {
     this.grid = room.grid;
@@ -102,7 +123,30 @@ export class CombatManager {
 
     this.player.ap -= PLAYER_DATA.basicAttack.apCost;
     return [
-      ...this.attack(this.player, enemy, PLAYER_DATA.basicAttack.damage),
+      ...this.hitEnemy(this.player.id, enemy, PLAYER_DATA.basicAttack.damage, null),
+      ...this.checkEnd(),
+    ];
+  }
+
+  /** Breached enemies the player can afford to inject right now, and that have an ally to turn on. */
+  getInjectableEnemies(): Enemy[] {
+    const { apCost, ramCost } = BREAK_RULES.injectVirus;
+    if (this.phase !== 'PLAYER_TURN') return [];
+    if (this.player.ap < apCost || this.player.ram < ramCost) return [];
+    return this.enemies.filter((enemy) => enemy.breached && this.nearestAlly(enemy) !== null);
+  }
+
+  /** Makes a breached enemy attack its nearest ally once. */
+  injectVirus(enemyId: string): CombatEvent[] {
+    const enemy = this.getInjectableEnemies().find((candidate) => candidate.id === enemyId);
+    const target = enemy ? this.nearestAlly(enemy) : null;
+    if (!enemy || !target) return [];
+
+    this.player.ap -= BREAK_RULES.injectVirus.apCost;
+    this.player.ram -= BREAK_RULES.injectVirus.ramCost;
+    return [
+      { type: 'virusInjected', entityId: enemy.id, targetId: target.id, at: enemy.position },
+      ...this.hitEnemy(enemy.id, target, enemy.attackDamage, null),
       ...this.checkEnd(),
     ];
   }
@@ -110,6 +154,7 @@ export class CombatManager {
   endPlayerTurn(): CombatEvent[] {
     if (this.phase !== 'PLAYER_TURN') return [];
     endPlayerTurn(this.player);
+    this.skipping.clear();
     return this.enterPhase('ENEMY_TURN');
   }
 
@@ -120,10 +165,29 @@ export class CombatManager {
     return turnOrder(this.enemies).map((enemy) => enemy.id);
   }
 
+  /**
+   * Call first when an enemy's turn comes up. Settles anything that happens
+   * before it acts: a breached enemy either loses this turn or recovers.
+   */
+  startEnemyTurn(enemyId: string): CombatEvent[] {
+    const enemy = this.findEnemy(enemyId);
+    if (!enemy || this.phase !== 'ENEMY_TURN') return [];
+
+    switch (tickBreach(enemy)) {
+      case 'skip_turn':
+        this.skipping.add(enemy.id);
+        return [{ type: 'turnSkipped', entityId: enemy.id, at: enemy.position, reason: 'breached' }];
+      case 'recovered':
+        return [{ type: 'recovered', entityId: enemy.id, at: enemy.position }];
+      case 'not_breached':
+        return [];
+    }
+  }
+
   /** What the enemy intends to do, in order. Does not change any state. */
   planEnemyTurn(enemyId: string): EnemyAction[] {
     const enemy = this.findEnemy(enemyId);
-    if (!enemy || this.phase !== 'ENEMY_TURN') return [];
+    if (!enemy || this.phase !== 'ENEMY_TURN' || this.skipping.has(enemyId)) return [];
     return planEnemyTurn(enemy, { grid: this.grid, player: this.player, rng: this.rng });
   }
 
@@ -177,7 +241,6 @@ export class CombatManager {
 
     if (defense && defense.grade !== 'miss') {
       this.player.apBank += effects.apBank;
-      enemy.firewallCurrent = Math.max(0, enemy.firewallCurrent - effects.firewallDamage);
       events.push({
         type: 'defended',
         kind: defense.kind,
@@ -186,12 +249,16 @@ export class CombatManager {
         at,
         apBanked: effects.apBank,
       });
+      // A perfect parry reflects onto the attacker's firewall, and can be what breaks it.
+      if (damageFirewall(enemy, effects.firewallDamage)) {
+        events.push({ type: 'breached', entityId: enemy.id, at: enemy.position });
+      }
     }
 
     // Whatever damage gets past the defense is resolved like any other hit,
     // so the end-turn dodge chance can still save the player.
     const damage = Math.round(enemy.attackDamage * effects.damageMultiplier);
-    if (damage > 0) events.push(...this.attack(enemy, this.player, damage));
+    if (damage > 0) events.push(...this.hitPlayer(enemy.id, damage));
 
     if (defense?.direction) {
       for (let hop = 0; hop < effects.teleportHexes; hop++) {
@@ -207,26 +274,71 @@ export class CombatManager {
 
   // --- Shared --------------------------------------------------------------
 
-  private attack(attacker: Entity, target: Player | Enemy, damage: number): CombatEvent[] {
-    const at = target.position;
-    const dodgeChance = target.kind === 'player' ? target.dodgeChance : 0;
-    const outcome = resolveAttack(target, damage, dodgeChance, this.rng);
+  private hitPlayer(attackerId: string, damage: number): CombatEvent[] {
+    const at = this.player.position;
+    const outcome = resolveAttack(this.player, damage, this.player.dodgeChance, this.rng);
 
     const events: CombatEvent[] = [
       {
         type: 'attacked',
-        attackerId: attacker.id,
-        targetId: target.id,
+        attackerId,
+        targetId: this.player.id,
         at,
         damage: outcome.damage,
         dodged: outcome.dodged,
+        amplified: false,
       },
     ];
+    if (outcome.killed) events.push({ type: 'died', entityId: this.player.id, at });
+    return events;
+  }
+
+  /**
+   * One hit on an enemy: damage (amplified if it is breached), then firewall.
+   * `tag` is the hit's spell tag, or null for an untagged hit like the basic attack.
+   */
+  private hitEnemy(
+    attackerId: string,
+    enemy: Enemy,
+    baseDamage: number,
+    tag: SpellTag | null,
+  ): CombatEvent[] {
+    const at = enemy.position;
+    // Decided before the hit lands: the hit that causes a breach is not itself amplified.
+    const multiplier = breachDamageMultiplier(enemy);
+    const outcome = resolveAttack(enemy, Math.round(baseDamage * multiplier), 0, this.rng);
+
+    const events: CombatEvent[] = [
+      {
+        type: 'attacked',
+        attackerId,
+        targetId: enemy.id,
+        at,
+        damage: outcome.damage,
+        dodged: outcome.dodged,
+        amplified: multiplier > 1,
+      },
+    ];
+
     if (outcome.killed) {
-      events.push({ type: 'died', entityId: target.id, at });
-      if (target.kind === 'enemy') this.removeEnemy(target);
+      events.push({ type: 'died', entityId: enemy.id, at });
+      this.removeEnemy(enemy);
+    } else if (damageFirewall(enemy, firewallDamageForHit(enemy, tag))) {
+      events.push({ type: 'breached', entityId: enemy.id, at });
     }
     return events;
+  }
+
+  /** The other enemy closest to `enemy`, or null if it is the last one standing. */
+  private nearestAlly(enemy: Enemy): Enemy | null {
+    let nearest: Enemy | null = null;
+    for (const other of this.enemies) {
+      if (other === enemy) continue;
+      if (!nearest || enemy.position.distance(other.position) < enemy.position.distance(nearest.position)) {
+        nearest = other;
+      }
+    }
+    return nearest;
   }
 
   /**

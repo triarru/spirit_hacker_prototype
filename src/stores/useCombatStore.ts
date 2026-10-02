@@ -30,6 +30,8 @@ interface CombatSnapshot {
   moveRange: HexCoord[];
   /** Enemies a click would attack right now. */
   attackableEnemyIds: string[];
+  /** Breached enemies the player can inject a virus into right now. */
+  injectableEnemyIds: string[];
 }
 
 export interface CombatState extends CombatSnapshot {
@@ -47,6 +49,8 @@ export interface CombatState extends CombatSnapshot {
   movePlayerTo: (hex: HexCoord) => Promise<void>;
   /** Basic attack. Does nothing if the enemy is out of range or the player cannot pay. */
   attackEnemy: (enemyId: string) => void;
+  /** Turns a breached enemy on its nearest ally. Does nothing if that is not possible right now. */
+  injectVirus: (enemyId: string) => void;
   /** Ends the player turn and plays out the enemy turn. */
   endTurn: () => Promise<void>;
 }
@@ -61,6 +65,7 @@ function snapshot(): CombatSnapshot {
     turn: combat.turn,
     moveRange: combat.getMoveRange(),
     attackableEnemyIds: combat.getAttackableEnemies().map((enemy) => enemy.id),
+    injectableEnemyIds: combat.getInjectableEnemies().map((enemy) => enemy.id),
   };
 }
 
@@ -108,6 +113,11 @@ export const useCombatStore = create<CombatState>((set, get) => {
       publish(combat.playerAttack(enemyId));
     },
 
+    injectVirus: (enemyId) => {
+      if (get().busy) return;
+      publish(combat.injectVirus(enemyId));
+    },
+
     endTurn: async () => {
       if (get().busy) return;
       // Outside the player turn this yields no events, and there is nothing to play out.
@@ -115,6 +125,13 @@ export const useCombatStore = create<CombatState>((set, get) => {
       set({ busy: true });
 
       for (const enemyId of combat.getEnemyTurnOrder()) {
+        // A breached enemy loses its turn here, or recovers; give that its own beat.
+        const turnStart = combat.startEnemyTurn(enemyId);
+        if (turnStart.length > 0) {
+          await sleep(timing.enemyActionDelaySeconds);
+          publish(turnStart);
+        }
+
         for (const action of combat.planEnemyTurn(enemyId)) {
           await sleep(timing.enemyActionDelaySeconds);
           // An attack the player can react to waits here for their parry or dodge.

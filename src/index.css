@@ -6,6 +6,7 @@
   --text-dim: #64748b;
   --cyan: #22d3ee;
   --gold: #facc15;
+  --virus: #c084fc;
   --spell: #f97316;
   --hp: #ef4444;
 
@@ -130,7 +131,81 @@ body,
 }
 
 .enemy-info .bar {
+  margin-bottom: 6px;
+}
+
+.break-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 10px;
+}
+
+.firewall-pips {
+  display: flex;
+  gap: 3px;
+}
+
+.firewall-pip {
+  width: 12px;
+  height: 6px;
+  border-radius: 1px;
+  background: #1e293b;
+}
+
+.firewall-pip-intact {
+  background: var(--cyan);
+}
+
+.weakness-tag {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.breached-label {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #fff;
+}
+
+.action-button {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+  padding: 6px 10px;
+  white-space: nowrap;
+  border: 1px solid var(--virus);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--virus);
+  font: inherit;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.action-button span {
+  letter-spacing: 0;
+  text-transform: none;
+  opacity: 0.8;
+}
+
+.action-button:hover:not(:disabled) {
+  background: rgba(192, 132, 252, 0.14);
+}
+
+.action-button:disabled {
+  border-color: var(--border);
+  color: var(--text-dim);
+  cursor: default;
+}
+
+.hint {
+  margin: 6px 0 0;
+  font-size: 11px;
+  color: var(--text-dim);
 }
 
 .turn-indicator {
@@ -235,8 +310,13 @@ body,
 }
 
 .hud-label {
-  width: 20px;
+  width: 28px;
   color: var(--text-dim);
+}
+
+.hud-value {
+  min-width: 52px;
+  text-align: right;
 }
 
 .ap-dots {
@@ -286,4 +366,8 @@ body,
 
 .bar-hp {
   background: var(--hp);
+}
+
+.bar-ram {
+  background: linear-gradient(90deg, #0891b2, var(--cyan));
 }
