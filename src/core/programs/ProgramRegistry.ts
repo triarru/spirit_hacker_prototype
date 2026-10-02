@@ -7,12 +7,16 @@ import {
   type ActiveSpec,
   type Effect,
   type Program,
+  type SpellTag,
 } from './Program';
 
 // --- Modifier function map ---------------------------------------------------
 
-/** Returns the host spell's spec with the modifier applied. Must not change `spec` itself. */
-export type ModifyFn = (spec: ActiveSpec, value: number) => ActiveSpec;
+/**
+ * Returns the host spell's spec with the modifier applied. Must not change
+ * `spec` itself. `tag` is the tag of the program doing the modifying.
+ */
+export type ModifyFn = (spec: ActiveSpec, value: number, tag: SpellTag) => ActiveSpec;
 
 export const MODIFIERS: Record<string, ModifyFn> = {
   addDamage: (spec, value) => ({ ...spec, damage: spec.damage + value }),
@@ -30,6 +34,8 @@ export const MODIFIERS: Record<string, ModifyFn> = {
     ...spec,
     effects: [...spec.effects, { type: 'heal', amount: value }],
   }),
+  // The host spell hits with the modifying program's tag instead of its own.
+  takeTag: (spec, _value, tag) => ({ ...spec, tag }),
   // The extra bars ride on the damage: a spell that does none gets nothing from this.
   addFirewallDamage: (spec, value) =>
     spec.damage > 0 ? { ...spec, firewallBonus: spec.firewallBonus + value } : spec,
@@ -47,6 +53,8 @@ export interface PassiveBonuses {
   damageReduction: number;
   /** Extra firewall bars stripped when a hit matches the enemy's weakness. */
   weaknessFirewallBonus: number;
+  /** Extra firewall bars a perfect parry strips from the attacker. */
+  parryFirewallBonus: number;
 }
 
 export function noBonuses(): PassiveBonuses {
@@ -57,6 +65,7 @@ export function noBonuses(): PassiveBonuses {
     hpPerTurn: 0,
     damageReduction: 0,
     weaknessFirewallBonus: 0,
+    parryFirewallBonus: 0,
   };
 }
 
@@ -81,6 +90,9 @@ export const PASSIVES: Record<string, PassiveFn> = {
   },
   weaknessFirewallBonus: (bonuses, value) => {
     bonuses.weaknessFirewallBonus += value;
+  },
+  parryFirewallBonus: (bonuses, value) => {
+    bonuses.parryFirewallBonus += value;
   },
 };
 
@@ -154,6 +166,7 @@ function parseProgram(id: string, raw: RawProgram): Program {
     tier: parseOneOf([1, 2, 3] as const, raw.tier, `tier of ${id}`),
     resourceType: parseOneOf(RESOURCE_TYPES, raw.resourceType, `resource type of ${id}`),
     active: {
+      tag: parseOneOf(SPELL_TAGS, raw.tag, `tag of ${id}`),
       apCost: raw.active.apCost,
       ramCost: raw.active.ramCost,
       qiCost: raw.active.qiCost,
@@ -187,7 +200,7 @@ export function applyModifier(host: ActiveSpec, modifier: Program | null): Activ
   if (!modifier) return host;
   const modify = MODIFIERS[modifier.modifier.modifyFn];
   if (!modify) throw new Error(`Unknown modifyFn "${modifier.modifier.modifyFn}"`);
-  return modify(host, modifier.modifier.value);
+  return modify(host, modifier.modifier.value, modifier.tag);
 }
 
 /** The combined bonuses of a set of programs slotted as passives. */

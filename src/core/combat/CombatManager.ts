@@ -323,7 +323,7 @@ export class CombatManager {
     ];
 
     for (const enemy of plan.enemies) {
-      events.push(...this.hitEnemy(this.player.id, enemy, spec.damage, program.tag, spec.firewallBonus));
+      events.push(...this.hitEnemy(this.player.id, enemy, spec.damage, spec.tag, spec.firewallBonus));
       const survived = this.enemies.includes(enemy);
       if (survived && plan.stunTurns > 0) {
         enemy.stunTurns = Math.max(enemy.stunTurns, plan.stunTurns);
@@ -618,7 +618,8 @@ export class CombatManager {
         ...timing,
       });
       // A perfect parry reflects onto the attacker's firewall, and can be what breaks it.
-      if (damageFirewall(enemy, effects.firewallDamage)) {
+      const reflected = effects.firewallDamage > 0 ? effects.firewallDamage + this.deck.bonuses.parryFirewallBonus : 0;
+      if (damageFirewall(enemy, reflected)) {
         events.push({ type: 'breached', entityId: enemy.id, at: enemy.position });
       }
     }
@@ -828,7 +829,7 @@ export class CombatManager {
   private previewHit(enemy: Enemy, plan: SpellPlan): SpellHitPreview {
     const damage = this.damageTo(enemy, plan.spec.damage);
     const kills = damage >= enemy.hp;
-    const stripped = this.firewallDamageOf(enemy, plan.program.tag, plan.spec.firewallBonus);
+    const stripped = this.firewallDamageOf(enemy, plan.spec.tag, plan.spec.firewallBonus);
     // A dead or already-breached enemy has no firewall left to lose.
     const firewallDamage = kills || enemy.breached ? 0 : Math.min(stripped, enemy.firewallCurrent);
     return {

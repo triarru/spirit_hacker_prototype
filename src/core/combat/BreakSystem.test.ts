@@ -444,6 +444,86 @@ describe('program tags against the crawler (weak to SHOCK)', () => {
     expect(guardian.firewallCurrent).toBe(guardian.firewallMax - BREAK_RULES.normalHitFirewallDamage - 1);
   });
 
+  describe('short_circuit', () => {
+    const deck = (active: string, modifier: string | null, passives: string[] = []) =>
+      new SpellDeck({
+        actives: [{ program: getProgram(active), modifier: modifier ? getProgram(modifier) : null }],
+        passives: passives.map(getProgram),
+        handSize: 1,
+      });
+    /** The player next to a crawler with plenty of health, holding one card. */
+    const against = (spells: SpellDeck) => {
+      const combat = new CombatManager(
+        makeRoom({ player: at(3, 4), enemies: [['crawler', at(3, 3)]] }),
+        NEVER_DODGE,
+        spells,
+      );
+      const [crawler] = combat.enemies;
+      if (!crawler) throw new Error('crawler missing');
+      crawler.hp = crawler.maxHp = 500;
+      return { combat, crawler };
+    };
+
+    it('is a SHOCK hit that does damage: 2 bars off a crawler, and it hurts', () => {
+      const { combat, crawler } = against(deck('short_circuit', null));
+      const { damage, tag } = getProgram('short_circuit').active;
+
+      combat.castSpell(0, crawler.position);
+
+      expect(tag).toBe('SHOCK');
+      expect(damage).toBeGreaterThan(0);
+      expect(crawler.hp).toBe(500 - damage);
+      expect(crawler.firewallCurrent).toBe(crawler.firewallMax - BREAK_RULES.weaknessHitFirewallDamage);
+      expect(crawler.breached).toBe(false);
+    });
+
+    it('reaches two hexes', () => {
+      const combat = new CombatManager(
+        makeRoom({ player: at(3, 6), enemies: [['crawler', at(3, 4)], ['crawler', at(3, 3)]] }),
+        NEVER_DODGE,
+        deck('short_circuit', null),
+      );
+      expect(combat.getSpellTargets(0)).toEqual([at(3, 4)]);
+    });
+
+    it('as a modifier, makes the host spell hit as SHOCK', () => {
+      const plain = against(deck('brute_force', null));
+      plain.combat.castSpell(0, plain.crawler.position);
+      expect(plain.crawler.firewallCurrent).toBe(plain.crawler.firewallMax - BREAK_RULES.normalHitFirewallDamage);
+
+      const charged = against(deck('brute_force', 'short_circuit'));
+      expect(charged.combat.getHand()[0]?.spec.tag).toBe('SHOCK');
+      charged.combat.castSpell(0, charged.crawler.position);
+      expect(charged.crawler.firewallCurrent).toBe(
+        charged.crawler.firewallMax - BREAK_RULES.weaknessHitFirewallDamage,
+      );
+      // Same damage as ever: only the tag changed.
+      expect(charged.crawler.hp).toBe(plain.crawler.hp);
+    });
+
+    it('as a passive, makes a perfect parry strip one more bar', () => {
+      const parried = (passives: string[]) => {
+        const { combat, crawler } = against(deck('brute_force', null, passives));
+        combat.player.ap = 0;
+        combat.endPlayerTurn();
+        combat.applyEnemyAction(crawler.id, { type: 'attack', targetId: combat.player.id }, { kind: 'parry', grade: 'perfect' });
+        return crawler.firewallMax - crawler.firewallCurrent;
+      };
+
+      expect(parried(['short_circuit'])).toBe(parried([]) + 1);
+    });
+
+    it('adds nothing to a parry that was only good', () => {
+      const { combat, crawler } = against(deck('brute_force', null, ['short_circuit']));
+      combat.player.hp = combat.player.maxHp = 1000;
+      combat.player.ap = 0;
+      combat.endPlayerTurn();
+      combat.applyEnemyAction(crawler.id, { type: 'attack', targetId: combat.player.id }, { kind: 'parry', grade: 'good' });
+
+      expect(crawler.firewallCurrent).toBe(crawler.firewallMax);
+    });
+  });
+
   describe('bonus bars and an intact firewall', () => {
     /** brute_force with tran_yem under it (+1 bar), cast at an adjacent enemy of the given type. */
     const strike = (typeId: string, prepare: (enemy: Enemy) => void = () => {}) => {

@@ -93,7 +93,7 @@ export function LoadoutScreen() {
             <div
               key={index}
               className="loadout-slot"
-              style={active ? ({ '--tag': cssColor(TAG_COLOR[active.tag]) } as React.CSSProperties) : undefined}
+              style={spec ? ({ '--tag': cssColor(TAG_COLOR[spec.tag]) } as React.CSSProperties) : undefined}
             >
               <h3>Active {index + 1}</h3>
               <ProgramSelect
@@ -105,7 +105,7 @@ export function LoadoutScreen() {
               <p className="loadout-effect">
                 {active && spec ? (
                   <>
-                    <strong>{active.displayName}</strong> <em>{active.tag}</em>
+                    <strong>{active.displayName}</strong> <em>{spec.tag}</em>
                     <br />
                     {describeSpec(spec)}
                     <br />

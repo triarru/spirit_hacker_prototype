@@ -24,7 +24,7 @@ function SpellCard({ card, hotkey, selected, disabled, onPick }: SpellCardProps)
     <button
       type="button"
       className={`spell-card${selected ? ' spell-card-selected' : ''}`}
-      style={{ '--tag': cssColor(TAG_COLOR[program.tag]) } as React.CSSProperties}
+      style={{ '--tag': cssColor(TAG_COLOR[spec.tag]) } as React.CSSProperties}
       disabled={disabled}
       onClick={(event) => {
         // Leave focus off the card, so Space (the parry key) cannot re-trigger it.
@@ -37,7 +37,7 @@ function SpellCard({ card, hotkey, selected, disabled, onPick }: SpellCardProps)
         <kbd>{hotkey}</kbd>
       </span>
       <span className="spell-card-name">
-        {program.name} <em>{program.tag}</em>
+        {program.name} <em>{spec.tag}</em>
       </span>
       <span className="spell-card-effect">{describeSpec(spec)}</span>
       <span className="spell-card-cost">{describeCost(spec)}</span>

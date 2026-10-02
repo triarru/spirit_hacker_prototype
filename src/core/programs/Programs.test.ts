@@ -18,7 +18,7 @@ const keys = (hexes: Array<{ key(): string }>): string[] => hexes.map((hex) => h
 describe('program registry', () => {
   it('loads the six starter programs with the stats from the design', () => {
     expect(Object.keys(PROGRAMS).sort()).toEqual(
-      ['brute_force', 'firewall_up', 'incense_burn', 'nmap_scan', 'ping_flood', 'tran_yem'],
+      ['brute_force', 'firewall_up', 'incense_burn', 'nmap_scan', 'ping_flood', 'short_circuit', 'tran_yem'],
     );
     expect(getProgram('brute_force').active).toMatchObject({ damage: 20, range: 1, targeting: 'ENEMY' });
     expect(getProgram('ping_flood').active).toMatchObject({ damage: 12, range: 3, targeting: 'LINE' });
@@ -54,6 +54,7 @@ describe('program registry', () => {
 
 describe('modifiers', () => {
   const host: ActiveSpec = {
+    tag: 'FIRE',
     apCost: 1,
     ramCost: 3,
     qiCost: 10,
@@ -67,7 +68,7 @@ describe('modifiers', () => {
   const modify = (name: string, value: number): ActiveSpec => {
     const fn = MODIFIERS[name];
     if (!fn) throw new Error(`no modifier ${name}`);
-    return fn(host, value);
+    return fn(host, value, 'SHOCK');
   };
 
   it('each change exactly one aspect of the host spell', () => {
@@ -76,6 +77,8 @@ describe('modifiers', () => {
     expect(modify('addAoe', 1)).toEqual({ ...host, aoe: 1 });
     expect(modify('addFirewallDamage', 1)).toEqual({ ...host, firewallBonus: 1 });
     expect(modify('addHeal', 5).effects).toEqual([...host.effects, { type: 'heal', amount: 5 }]);
+    // The modifying program lends its own tag.
+    expect(modify('takeTag', 0)).toEqual({ ...host, tag: 'SHOCK' });
   });
 
   it('addFirewallDamage does nothing for a host spell that deals no damage', () => {
@@ -83,8 +86,8 @@ describe('modifiers', () => {
     if (!fn) throw new Error('no modifier addFirewallDamage');
     const harmless: ActiveSpec = { ...host, damage: 0 };
 
-    expect(fn(harmless, 1)).toEqual(harmless);
-    expect(fn({ ...host, damage: 1 }, 1).firewallBonus).toBe(1);
+    expect(fn(harmless, 1, 'PURE')).toEqual(harmless);
+    expect(fn({ ...host, damage: 1 }, 1, 'PURE').firewallBonus).toBe(1);
   });
 
   it('reduceCost lowers RAM and Qi but never below zero', () => {
@@ -94,7 +97,7 @@ describe('modifiers', () => {
   it('addRange leaves an unlimited range unlimited', () => {
     const addRange = MODIFIERS.addRange;
     if (!addRange) throw new Error('no addRange');
-    expect(addRange({ ...host, range: null }, 1).range).toBeNull();
+    expect(addRange({ ...host, range: null }, 1, 'SHOCK').range).toBeNull();
   });
 
   it('never alter the host spec they were given', () => {

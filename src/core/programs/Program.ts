@@ -27,6 +27,8 @@ export type Effect =
 
 /** Everything needed to cast a spell: a program's Active, after its modifier (if any) is applied. */
 export interface ActiveSpec {
+  /** The tag its hits carry. The program's own, unless a modifier changed it. */
+  tag: SpellTag;
   apCost: number;
   ramCost: number;
   qiCost: number;

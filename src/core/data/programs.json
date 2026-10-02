@@ -125,5 +125,25 @@
       "passiveFn": "weaknessFirewallBonus",
       "value": 1
     }
+  },
+  "short_circuit": {
+    "name": "short_circuit()",
+    "displayName": "Đoản Mạch",
+    "category": "Attack",
+    "tag": "SHOCK",
+    "tier": 1,
+    "resourceType": "RAM",
+    "active": {
+      "apCost": 1,
+      "ramCost": 12,
+      "qiCost": 0,
+      "targeting": "ENEMY",
+      "range": 2,
+      "aoe": 0,
+      "damage": 14,
+      "effects": []
+    },
+    "modifier": { "description": "Host spell hits as SHOCK instead of its own tag.", "modifyFn": "takeTag", "value": 0 },
+    "passive": { "description": "A perfect parry strips 1 extra firewall bar.", "passiveFn": "parryFirewallBonus", "value": 1 }
   }
 }
