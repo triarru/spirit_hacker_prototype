@@ -187,11 +187,35 @@ describe('inject virus', () => {
     expect(combat.player.ap).toBe(combat.player.maxAp - injectVirus.apCost);
     expect(combat.player.ram).toBe(combat.player.maxRam - injectVirus.ramCost);
     expect(guardian.hp).toBe(guardian.maxHp - crawler.attackDamage);
-    expect(guardian.firewallCurrent).toBe(guardian.firewallMax - BREAK_RULES.normalHitFirewallDamage);
+    // A forced blow is not one of the player's hits: the ally's firewall is untouched.
+    expect(guardian.firewallCurrent).toBe(guardian.firewallMax);
     expect(ghost.hp).toBe(ghost.maxHp);
     expect(crawler.hp).toBe(crawler.maxHp);
     expect(events.map((event) => event.type)).toEqual(['virusInjected', 'attacked']);
     expect(events[1]).toMatchObject({ attackerId: crawler.id, targetId: guardian.id });
+  });
+
+  it('never breaches the ally it hits, however weak that ally\'s firewall is', () => {
+    const { combat, crawler, guardian } = setup();
+    guardian.hp = guardian.maxHp = 500;
+    guardian.firewallCurrent = 1;
+
+    const events = combat.injectVirus(crawler.id);
+
+    expect(events.map((event) => event.type)).toEqual(['virusInjected', 'attacked']);
+    expect([guardian.firewallCurrent, guardian.breached]).toEqual([1, false]);
+    // No breach means no second virus to pass on: the chain stops here.
+    expect(combat.getInjectableEnemies()).toEqual([]);
+  });
+
+  it('still hits a breached ally for amplified damage', () => {
+    const { combat, crawler, guardian } = setup();
+    guardian.hp = guardian.maxHp = 500;
+    damageFirewall(guardian, 99);
+
+    combat.injectVirus(crawler.id);
+
+    expect(guardian.hp).toBe(500 - Math.round(crawler.attackDamage * BREAK_RULES.breachDamageMultiplier));
   });
 
   it('needs enough AP and enough RAM', () => {

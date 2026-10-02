@@ -335,7 +335,10 @@ export class CombatManager {
     );
   }
 
-  /** Makes a breached enemy attack its nearest ally once. */
+  /**
+   * Makes a breached enemy attack its nearest ally once. The blow is forced,
+   * not one of the player's own hits: it hurts, but leaves the ally's firewall alone.
+   */
   injectVirus(enemyId: string): CombatEvent[] {
     const enemy = this.getInjectableEnemies().find((candidate) => candidate.id === enemyId);
     const target = enemy ? this.nearestAlly(enemy) : null;
@@ -346,7 +349,7 @@ export class CombatManager {
     enemy.virusInjected = true;
     return [
       { type: 'virusInjected', entityId: enemy.id, targetId: target.id, at: enemy.position },
-      ...this.hitEnemy(enemy.id, target, enemy.attackDamage, null),
+      ...this.damageEnemy(enemy.id, target, enemy.attackDamage),
       ...this.checkEnd(),
     ];
   }
@@ -664,14 +667,27 @@ export class CombatManager {
     firewallBonus = 0,
   ): CombatEvent[] {
     const at = enemy.position;
-    const events: CombatEvent[] = [];
-    // Read before the hit lands: the hit that causes a breach is not itself amplified.
     const firewallDamage = this.firewallDamageOf(enemy, tag, firewallBonus);
-    const damage = this.damageTo(enemy, baseDamage);
+    // Damage lands before the firewall goes: the hit that causes a breach is not itself amplified.
+    const events = this.damageEnemy(attackerId, enemy, baseDamage);
+    if (!this.enemies.includes(enemy)) return events;
 
-    if (damage > 0) {
-      const outcome = resolveAttack(enemy, damage, 0, this.rng);
-      events.push({
+    if (attackerId === this.player.id) events.push(...this.provoke(enemy));
+    if (damageFirewall(enemy, firewallDamage)) {
+      events.push({ type: 'breached', entityId: enemy.id, at });
+    }
+    return events;
+  }
+
+  /** The damage half of a hit (amplified if the enemy is breached), and its death if that kills it. */
+  private damageEnemy(attackerId: string, enemy: Enemy, baseDamage: number): CombatEvent[] {
+    const at = enemy.position;
+    const damage = this.damageTo(enemy, baseDamage);
+    if (damage <= 0) return [];
+
+    const outcome = resolveAttack(enemy, damage, 0, this.rng);
+    const events: CombatEvent[] = [
+      {
         type: 'attacked',
         attackerId,
         targetId: enemy.id,
@@ -679,17 +695,11 @@ export class CombatManager {
         damage: outcome.damage,
         dodged: outcome.dodged,
         amplified: enemy.breached,
-      });
-      if (outcome.killed) {
-        events.push({ type: 'died', entityId: enemy.id, at });
-        this.removeEnemy(enemy);
-        return events;
-      }
-    }
-    if (attackerId === this.player.id) events.push(...this.provoke(enemy));
-
-    if (damageFirewall(enemy, firewallDamage)) {
-      events.push({ type: 'breached', entityId: enemy.id, at });
+      },
+    ];
+    if (outcome.killed) {
+      events.push({ type: 'died', entityId: enemy.id, at });
+      this.removeEnemy(enemy);
     }
     return events;
   }
