@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { CombatManager } from '../combat/CombatManager';
 import { at, makeRoom, runEnemyPhase, seededRng } from '../combat/testRoom';
-import type { RoomState } from '../data/RoomLoader';
+import { loadRoom, type RoomState } from '../data/RoomLoader';
 import { canHitFrom, type Enemy } from '../entities/Enemy';
 import { hasLineOfSight } from '../hex/hasLineOfSight';
 import type { HexCoord } from '../hex/HexCoord';
@@ -93,23 +93,47 @@ describe('patrol behavior (Crawler)', () => {
 });
 
 describe('random behavior (Ghost Process)', () => {
-  it('drifts to a free neighbor chosen by the rng', () => {
-    const room = makeRoom({ player: at(3, 8), enemies: [['ghost_process', at(3, 2)]] });
-    const first = plan(room, 0).actions;
-    const last = plan(room, 0.999).actions;
+  const ROLLS = [0, 0.2, 0.4, 0.6, 0.8, 0.999];
 
-    for (const actions of [first, last]) {
+  it('closes in on a player it has no shot at, whatever the roll', () => {
+    const room = makeRoom({ player: at(3, 8), enemies: [['ghost_process', at(3, 2)]] });
+
+    for (const roll of ROLLS) {
+      const { enemy, actions } = plan(room, roll);
       expect(actions).toHaveLength(1);
       const [move] = actions;
       if (move?.type !== 'move') throw new Error('expected a move');
-      expect(move.to.distance(at(3, 2))).toBe(1);
-      expect(room.grid.isBlocked(move.to)).toBe(false);
+      expect(enemy.position.distance(move.to)).toBe(1);
+      expect(move.to.distance(room.player.position)).toBe(enemy.position.distance(room.player.position) - 1);
     }
-    expect(first).not.toEqual(last);
   });
 
-  it('never drifts onto a wall or another entity', () => {
-    // A 1-wide corridor: wall above, player below. Nowhere to go.
+  it('steps into range and fires in the same turn', () => {
+    const room = makeRoom({ cols: 1, rows: 5, player: at(0, 4), enemies: [['ghost_process', at(0, 1)]] });
+    for (const roll of ROLLS) {
+      expect(plan(room, roll).actions).toEqual([{ type: 'move', to: at(0, 2) }, attack]);
+    }
+  });
+
+  it('with a shot already, shifts to another hex it can fire from, chosen by the rng', () => {
+    const room = makeRoom({ player: at(3, 6), enemies: [['ghost_process', at(3, 4)]] });
+    const destinations = new Set<string>();
+
+    for (const roll of ROLLS) {
+      const { enemy, actions } = plan(room, roll);
+      expect(actions).toHaveLength(2);
+      const [move, shot] = actions;
+      if (move?.type !== 'move') throw new Error('expected a move');
+      expect(shot).toEqual(attack);
+      expect(canHitFrom(room.grid, enemy, move.to, room.player.position)).toBe(true);
+      destinations.add(move.to.key());
+    }
+    // The side the shot comes from is not predictable.
+    expect(destinations.size).toBeGreaterThan(1);
+  });
+
+  it('holds still and fires when it has nowhere to go', () => {
+    // A 1-wide corridor: wall above, player below.
     const room = makeRoom({
       cols: 1,
       rows: 3,
@@ -120,20 +144,37 @@ describe('random behavior (Ghost Process)', () => {
     expect(plan(room).actions).toEqual([attack]);
   });
 
-  it('fires when the player is within range after the move', () => {
+  it('drifts at random when there is no way through to the player', () => {
+    // The corridor is sealed between them, so there is nothing to close in along.
     const room = makeRoom({
       cols: 1,
-      rows: 5,
-      player: at(0, 4),
+      rows: 6,
+      player: at(0, 5),
       enemies: [['ghost_process', at(0, 1)]],
+      walls: [at(0, 3)],
     });
-    // Two free neighbors, so the extreme rolls cover both without assuming their order.
     const plans = [plan(room, 0).actions, plan(room, 0.999).actions];
 
-    // Drifting to (0, 2) leaves it two hexes from the player: in range.
-    expect(plans).toContainEqual([{ type: 'move', to: at(0, 2) }, attack]);
-    // Drifting to (0, 0) leaves it four hexes away: out of range.
     expect(plans).toContainEqual([{ type: 'move', to: at(0, 0) }]);
+    expect(plans).toContainEqual([{ type: 'move', to: at(0, 2) }]);
+  });
+
+  it('gets its first shot at a player who never leaves the spawn within five turns', () => {
+    for (const seed of [1, 2, 3, 4, 5, 6, 7, 8]) {
+      const combat = new CombatManager(loadRoom('prototype_room'), seededRng(seed));
+      combat.player.hp = combat.player.maxHp = 100_000;
+      let firstShot = 0;
+
+      for (let turn = 1; turn <= 5 && firstShot === 0; turn++) {
+        combat.player.ap = 0;
+        combat.endPlayerTurn();
+        const fired = runEnemyPhase(combat).some(
+          (event) => event.type === 'attacked' && event.attackerId.startsWith('ghost_process'),
+        );
+        if (fired) firstShot = turn;
+      }
+      expect(firstShot).toBeGreaterThan(0);
+    }
   });
 });
 

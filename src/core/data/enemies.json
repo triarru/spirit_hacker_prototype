@@ -45,6 +45,6 @@
       "damage": 8,
       "range": 2
     },
-    "hint": "Drifts at random, and fires when you are within 2 hexes and in its line of sight. Walls block its shots."
+    "hint": "Closes in until it has a clear shot within 2 hexes, then keeps shifting position between shots. Walls block its shots."
   }
 }

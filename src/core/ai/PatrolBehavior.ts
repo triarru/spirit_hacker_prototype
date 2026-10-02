@@ -8,7 +8,7 @@ import type { Behavior, EnemyAction } from './EnemyAI';
  * Shortest path from `from` to any free hex next to `target`. The target's own
  * hex is occupied, so it can never be a path goal itself. Empty if boxed out.
  */
-function pathToward(grid: HexGrid, from: HexCoord, target: HexCoord): HexCoord[] {
+export function pathToward(grid: HexGrid, from: HexCoord, target: HexCoord): HexCoord[] {
   let best: HexCoord[] = [];
   for (const goal of target.neighbors()) {
     const path = findPath(grid, from, goal);
