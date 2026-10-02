@@ -6,7 +6,8 @@
     "enemies": [
       { "type": "crawler", "col": 1, "row": 2 },
       { "type": "guardian", "col": 3, "row": 1 },
-      { "type": "ghost_process", "col": 5, "row": 3 }
+      { "type": "ghost_process", "col": 5, "row": 3 },
+      { "type": "crawler", "col": 5, "row": 6 }
     ],
     "terrain": [
       { "type": "WALL", "col": 2, "row": 4 },

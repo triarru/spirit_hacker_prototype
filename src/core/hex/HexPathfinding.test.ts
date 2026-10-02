@@ -113,9 +113,9 @@ describe('reachableHexes', () => {
 describe('prototype_room', () => {
   const { grid, player, enemies } = loadRoom('prototype_room');
 
-  it('spawns the player and 3 enemies on a 7x9 grid', () => {
+  it('spawns the player and 4 enemies on a 7x9 grid', () => {
     expect(grid.allCells()).toHaveLength(63);
-    expect(enemies).toHaveLength(3);
+    expect(enemies).toHaveLength(4);
     for (const entity of [player, ...enemies]) {
       expect(grid.getEntityAt(entity.position)).toBe(entity);
     }

@@ -220,7 +220,37 @@ describe('turn order', () => {
 
   it('runs the enemy turn in that order', () => {
     const combat = new CombatManager(loadRoom('prototype_room'));
-    expect(combat.getEnemyTurnOrder()).toEqual(['ghost_process_2', 'crawler_0', 'guardian_1']);
+    expect(combat.getEnemyTurnOrder()).toEqual(['ghost_process_2', 'crawler_0', 'crawler_3', 'guardian_1']);
+  });
+});
+
+describe('prototype_room opening', () => {
+  it('starts a second crawler three hexes from the player', () => {
+    const { player, enemies } = loadRoom('prototype_room');
+    const crawlers = enemies.filter((enemy) => enemy.typeId === 'crawler');
+
+    expect(crawlers.map((crawler) => crawler.position.distance(player.position))).toEqual([7, 3]);
+  });
+
+  it('lets that crawler reach and strike a player who stays put on turn 1', () => {
+    const combat = new CombatManager(loadRoom('prototype_room'), seededRng(7));
+    combat.player.ap = 0;
+    combat.endPlayerTurn();
+
+    const hits = runEnemyPhase(combat).filter((event) => event.type === 'attacked');
+    expect(hits).toEqual([expect.objectContaining({ attackerId: 'crawler_3', targetId: combat.player.id })]);
+    expect(combat.player.hp).toBeLessThan(combat.player.maxHp);
+  });
+
+  it('is too far away for the player to kill it before it acts', () => {
+    const combat = new CombatManager(loadRoom('prototype_room'), seededRng(7));
+    const near = combat.enemies.find((enemy) => enemy.id === 'crawler_3');
+    if (!near) throw new Error('crawler missing');
+
+    // Getting next to it costs two of the three AP, and nothing does 30 damage for one.
+    const adjacent = near.position.neighbors().map((hex) => combat.getPathTo(hex).length - 1);
+    expect(Math.min(...adjacent.filter((steps) => steps > 0))).toBe(2);
+    expect(combat.getAttackableEnemies()).toEqual([]);
   });
 });
 
@@ -244,10 +274,10 @@ describe('prototype_room simulation', () => {
       expect(occupied).toHaveLength(everyone.length);
     }
 
-    // The crawler hunts the player down; the guardian never leaves its post.
-    const crawler = combat.enemies.find((enemy) => enemy.typeId === 'crawler');
+    // The crawlers hunt the player down; the guardian never leaves its post.
+    const crawlers = combat.enemies.filter((enemy) => enemy.typeId === 'crawler');
     const guardian = combat.enemies.find((enemy) => enemy.typeId === 'guardian');
-    expect(crawler?.position.distance(combat.player.position)).toBe(1);
+    expect(crawlers.map((crawler) => crawler.position.distance(combat.player.position))).toEqual([1, 1]);
     expect(guardian?.position.equals(at(3, 1))).toBe(true);
     expect(combat.player.hp).toBeLessThan(combat.player.maxHp);
   });
