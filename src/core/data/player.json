@@ -1,12 +1,15 @@
 {
   "name": "Vân",
   "maxHp": 100,
+  "hp": 100,
+  "maxRam": 100,
+  "ram": 100,
+  "maxQi": 100,
+  "qi": 100,
+  "ramRegen": 15,
   "speed": 5,
   "maxAp": 3,
   "apCap": 5,
-  "maxRam": 50,
-  "maxQi": 30,
-  "ramRegen": 15,
   "endTurnDodgeBonus": 0.15,
   "basicAttack": { "damage": 10, "range": 1, "apCost": 1 }
 }

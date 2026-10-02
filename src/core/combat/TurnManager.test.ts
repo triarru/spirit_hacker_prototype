@@ -94,6 +94,23 @@ describe('regen in combat', () => {
     expect(events.some((event) => event.type === 'regenerated')).toBe(false);
   });
 
+  it('casting ping_flood from full leaves 88 RAM, and the next turn tops it back up to 100', () => {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 4), enemies: [['guardian', at(0, 0)]] }),
+      () => 0.999,
+      new SpellDeck({ actives: [{ program: getProgram('ping_flood'), modifier: null }], passives: [], handSize: 1 }),
+    );
+    expect(combat.player.ram).toBe(100);
+
+    combat.castSpell(0, at(3, 5));
+    expect(combat.player.ram).toBe(88);
+
+    combat.endPlayerTurn();
+    const events = runEnemyPhase(combat);
+    expect(combat.player.ram).toBe(100);
+    expect(events).toContainEqual({ type: 'regenerated', ram: 12, qi: 0 });
+  });
+
   it('does not regenerate during the turn itself, only when a new one starts', () => {
     const combat = fight();
     combat.player.ram = 10;

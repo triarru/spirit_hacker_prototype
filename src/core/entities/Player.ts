@@ -23,6 +23,7 @@ export interface Player extends Entity {
   dodgeChance: number;
 }
 
+/** A player at the start of a run: stats and starting resources from player.json. */
 export function createPlayer(position: HexCoord): Player {
   return {
     id: PLAYER_ID,
@@ -30,16 +31,16 @@ export function createPlayer(position: HexCoord): Player {
     typeId: 'player',
     name: PLAYER_DATA.name,
     position,
-    hp: PLAYER_DATA.maxHp,
+    hp: PLAYER_DATA.hp,
     maxHp: PLAYER_DATA.maxHp,
     speed: PLAYER_DATA.speed,
     ap: PLAYER_DATA.maxAp,
     maxAp: PLAYER_DATA.maxAp,
     apBank: 0,
-    ram: PLAYER_DATA.maxRam,
+    ram: PLAYER_DATA.ram,
     maxRam: PLAYER_DATA.maxRam,
     ramRegen: PLAYER_DATA.ramRegen,
-    qi: PLAYER_DATA.maxQi,
+    qi: PLAYER_DATA.qi,
     maxQi: PLAYER_DATA.maxQi,
     dodgeChance: 0,
   };
