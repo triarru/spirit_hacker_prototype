@@ -2,8 +2,8 @@
   "parry": {
     "durationSeconds": 1.0,
     "perfectAtSeconds": 0.85,
-    "perfectToleranceSeconds": 0.035,
-    "goodToleranceSeconds": 0.07,
+    "perfectToleranceSeconds": 0.03,
+    "goodToleranceSeconds": 0.06,
     "judgeToleranceSeconds": 0.25,
     "goodDamageMultiplier": 0.5,
     "perfectApBank": 1,
@@ -12,8 +12,8 @@
   "dodge": {
     "durationSeconds": 0.9,
     "perfectAtSeconds": 0.65,
-    "perfectToleranceSeconds": 0.035,
-    "goodToleranceSeconds": 0.07,
+    "perfectToleranceSeconds": 0.03,
+    "goodToleranceSeconds": 0.06,
     "judgeToleranceSeconds": 0.25,
     "goodDamageMultiplier": 0.3,
     "perfectTeleportHexes": 1
