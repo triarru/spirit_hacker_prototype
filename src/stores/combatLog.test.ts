@@ -124,3 +124,10 @@ describe('describeEvents', () => {
     ]);
   });
 });
+
+describe('describeEvents: regeneration', () => {
+  it('logs the RAM that came back, as in the patch notes', () => {
+    expect(text([{ type: 'regenerated', ram: 15, qi: 0 }])).toEqual(['RAM +15 (regen)']);
+    expect(text([{ type: 'regenerated', ram: 20, qi: 3 }])).toEqual(['RAM +20 (regen)', 'Qi +3 (regen)']);
+  });
+});

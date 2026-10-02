@@ -105,6 +105,10 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
       case 'healed':
         lines.push({ tone: 'good', text: `${nameOf(event.entityId)} recovers ${event.amount} HP` });
         break;
+      case 'regenerated':
+        if (event.ram > 0) lines.push({ tone: 'neutral', text: `RAM +${event.ram} (regen)` });
+        if (event.qi > 0) lines.push({ tone: 'neutral', text: `Qi +${event.qi} (regen)` });
+        break;
       case 'hacked':
         lines.push({ tone: 'player', text: HACK_TEXT[event.kind] });
         break;

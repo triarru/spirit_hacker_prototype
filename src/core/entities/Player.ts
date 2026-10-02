@@ -15,6 +15,8 @@ export interface Player extends Entity {
   apBank: number;
   ram: number;
   maxRam: number;
+  /** RAM that comes back on its own at the start of each turn. */
+  ramRegen: number;
   qi: number;
   maxQi: number;
   /** Chance (0–1) that an incoming attack misses outright. */
@@ -36,6 +38,7 @@ export function createPlayer(position: HexCoord): Player {
     apBank: 0,
     ram: PLAYER_DATA.maxRam,
     maxRam: PLAYER_DATA.maxRam,
+    ramRegen: PLAYER_DATA.ramRegen,
     qi: PLAYER_DATA.maxQi,
     maxQi: PLAYER_DATA.maxQi,
     dodgeChance: 0,

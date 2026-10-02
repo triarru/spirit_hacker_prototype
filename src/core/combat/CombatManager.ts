@@ -36,7 +36,7 @@ import {
   type DefensePrompt,
   type DefenseResult,
 } from './ReactiveDefense';
-import { endPlayerTurn, startPlayerTurn, turnOrder } from './TurnManager';
+import { endPlayerTurn, regenerate, startPlayerTurn, turnOrder } from './TurnManager';
 
 export type CombatPhase = 'PLAYER_TURN' | 'ENEMY_TURN' | 'VICTORY' | 'DEFEAT';
 
@@ -70,6 +70,7 @@ export type CombatEvent =
   | { /** The player cast a program at `at`. */ type: 'spellCast'; programId: string; programName: string; at: HexCoord }
   | { type: 'stunned'; entityId: string; at: HexCoord; turns: number }
   | { type: 'healed'; entityId: string; at: HexCoord; amount: number }
+  | { /** RAM and Qi that came back at the start of the turn. */ type: 'regenerated'; ram: number; qi: number }
   | { /** Something standing on the grid changed: walls, turrets, traps. */ type: 'terrainChanged' }
   | { /** The player hacked the hex at `at`. */ type: 'hacked'; kind: HackKind; at: HexCoord }
   | { type: 'turretFired'; at: HexCoord; targetId: string; targetAt: HexCoord }
@@ -472,10 +473,18 @@ export class CombatManager {
     this.turn += 1;
     startPlayerTurn(this.player);
 
-    const { ramPerTurn, qiPerTurn, hpPerTurn } = this.deck.bonuses;
-    this.player.ram = Math.min(this.player.maxRam, this.player.ram + ramPerTurn);
-    this.player.qi = Math.min(this.player.maxQi, this.player.qi + qiPerTurn);
-    events.push(...this.healPlayer(hpPerTurn));
+    const regen = regenerate(this.player, this.deck.bonuses);
+    if (regen.ram > 0 || regen.qi > 0) {
+      events.push({ type: 'regenerated', ram: regen.ram, qi: regen.qi });
+    }
+    if (regen.hp > 0) {
+      events.push({
+        type: 'healed',
+        entityId: this.player.id,
+        at: this.player.position,
+        amount: regen.hp,
+      });
+    }
 
     this.deck.drawHand(this.rng);
     return [...events, ...this.enterPhase('PLAYER_TURN')];

@@ -410,7 +410,8 @@ describe('passives in combat', () => {
     const events = runEnemyPhase(combat);
 
     expect(combat.player.hp).toBe(53);
-    expect(combat.player.ram).toBe(15);
+    // Base regen plus the ping_flood passive.
+    expect(combat.player.ram).toBe(10 + combat.player.ramRegen + 5);
     expect(combat.player.qi).toBe(combat.player.maxQi);
     expect(events).toContainEqual({
       type: 'healed',
