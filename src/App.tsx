@@ -1,4 +1,5 @@
 import { GameCanvas } from './renderer/GameCanvas';
+import { ActionMenu } from './ui/ActionMenu';
 import { DebugPanel } from './ui/DebugPanel';
 import { EnemyInfo } from './ui/EnemyInfo';
 import { GameOverScreen } from './ui/GameOverScreen';
@@ -20,6 +21,7 @@ export function App() {
         <EnemyInfo />
         <DebugPanel />
         <SpellBar />
+        <ActionMenu />
         <GameOverScreen />
       </div>
     </div>

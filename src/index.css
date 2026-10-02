@@ -249,8 +249,8 @@ body,
   gap: 8px;
 }
 
+.hack-button,
 .end-turn {
-  margin-top: 4px;
   padding: 6px 0;
   border: 1px solid var(--cyan);
   border-radius: 4px;
@@ -262,14 +262,79 @@ body,
   cursor: pointer;
 }
 
-.end-turn:hover:not(:disabled) {
-  background: rgba(34, 211, 238, 0.12);
+.hack-button:hover:not(:disabled),
+.end-turn:hover:not(:disabled),
+.hack-button-active {
+  background: rgba(34, 211, 238, 0.14);
 }
 
+.hack-button:disabled,
 .end-turn:disabled {
   border-color: var(--border);
   color: var(--text-dim);
   cursor: default;
+}
+
+.hack-button {
+  margin-top: 4px;
+}
+
+.hack-button kbd {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid currentColor;
+  border-radius: 3px;
+  font: inherit;
+  font-size: 10px;
+  opacity: 0.7;
+}
+
+.action-menu {
+  width: 232px;
+  display: grid;
+  gap: 6px;
+}
+
+.action-menu h2 {
+  margin-bottom: 2px;
+}
+
+.menu-option {
+  display: grid;
+  gap: 1px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.menu-option:hover:not(:disabled) {
+  border-color: var(--cyan);
+  background: rgba(34, 211, 238, 0.1);
+}
+
+.menu-option:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.menu-option strong {
+  font-weight: 600;
+}
+
+.menu-option span {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.menu-option em {
+  font-size: 11px;
+  font-style: normal;
+  color: var(--cyan);
 }
 
 .game-over {
@@ -397,6 +462,7 @@ body,
 
 .spell-bar-hint {
   margin: 0;
+  white-space: nowrap;
   font-size: 11px;
   letter-spacing: 0.06em;
   color: var(--text-dim);

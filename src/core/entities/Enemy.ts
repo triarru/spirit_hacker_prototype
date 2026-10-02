@@ -20,6 +20,8 @@ export interface Enemy extends Entity {
   breachSkipsLeft: number;
   /** Turns this enemy will lose to a stun. */
   stunTurns: number;
+  /** Turns this enemy will move one hex less than usual. */
+  slowTurns: number;
   weakness: SpellTag;
   behaviorType: BehaviorType;
   attackType: AttackType;
@@ -60,6 +62,7 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
     breached: false,
     breachSkipsLeft: 0,
     stunTurns: 0,
+    slowTurns: 0,
     weakness: parseOneOf(SPELL_TAGS, definition.weakness, `weakness of ${typeId}`),
     behaviorType: parseOneOf(BEHAVIOR_TYPES, definition.behavior, `behavior of ${typeId}`),
     attackType: parseOneOf(ATTACK_TYPES, definition.attack.type, `attack type of ${typeId}`),

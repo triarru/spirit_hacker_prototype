@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import type { HandCard } from '../core/combat/CombatManager';
+import { HACK_RULES } from '../core/combat/EnvironmentHack';
 import type { ActiveSpec } from '../core/programs/Program';
 import { useCombatStore } from '../stores/useCombatStore';
 import { useUIStore } from '../stores/useUIStore';
@@ -29,6 +30,11 @@ function describeCost(spec: ActiveSpec): string {
   if (spec.qiCost > 0) costs.push(`${spec.qiCost} Qi`);
   return costs.join(' · ');
 }
+
+const HACK_HINT =
+  `Hack: terminal → turret (${HACK_RULES.turret.ramCost} RAM) · ` +
+  `floor → trap (${HACK_RULES.trap.ramCost}) or wall (${HACK_RULES.wall.ramCost}) · ` +
+  `wall → break (${HACK_RULES.breakWall.ramCost}) · Esc to cancel`;
 
 interface SpellCardProps {
   card: HandCard;
@@ -76,13 +82,19 @@ export function SpellBar() {
   const canAct = useCombatStore((state) => state.phase === 'PLAYER_TURN' && !state.busy);
   const combatOver = useCombatStore((state) => state.phase === 'VICTORY' || state.phase === 'DEFEAT');
   const targetingSlot = useUIStore((state) => state.targetingSlot);
+  const hackMode = useUIStore((state) => state.hackMode);
   const selectCard = useUIStore((state) => state.selectCard);
-  const cancelTargeting = useUIStore((state) => state.cancelTargeting);
+  const toggleHackMode = useUIStore((state) => state.toggleHackMode);
+  const cancelAction = useUIStore((state) => state.cancelAction);
 
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent): void => {
       if (event.code === 'Escape') {
-        cancelTargeting();
+        cancelAction();
+        return;
+      }
+      if (event.code === 'KeyH' && !event.repeat) {
+        toggleHackMode();
         return;
       }
       // Digit1..Digit9 pick the card in that position of the hand.
@@ -92,18 +104,20 @@ export function SpellBar() {
     };
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
-  }, [cancelTargeting, selectCard]);
+  }, [cancelAction, selectCard, toggleHackMode]);
 
   if (combatOver) return null;
 
   return (
     <div className="spell-bar">
       <p className="spell-bar-hint">
-        {targetingSlot !== null
-          ? 'Click a highlighted hex to cast · Esc or right-click to cancel'
-          : hand.length > 0
-            ? 'Pick a program'
-            : 'No programs left this turn'}
+        {hackMode
+          ? HACK_HINT
+          : targetingSlot !== null
+            ? 'Click a highlighted hex to cast · Esc or right-click to cancel'
+            : hand.length > 0
+              ? 'Pick a program'
+              : 'No programs left this turn'}
       </p>
       <div className="spell-cards">
         {hand.map((card, index) => (

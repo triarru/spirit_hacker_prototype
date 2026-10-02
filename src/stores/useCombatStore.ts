@@ -3,9 +3,11 @@ import {
   CombatManager,
   type CombatEvent,
   type CombatPhase,
+  type HackOption,
   type HandCard,
   type SpellPreview,
 } from '../core/combat/CombatManager';
+import type { HackKind } from '../core/combat/EnvironmentHack';
 import {
   ReactiveDefense,
   type DefensePrompt,
@@ -40,6 +42,8 @@ interface CombatSnapshot {
   attackableEnemyIds: string[];
   /** Breached enemies the player can inject a virus into right now. */
   injectableEnemyIds: string[];
+  /** Hexes the player could hack right now. */
+  hackTargets: HexCoord[];
   /** This turn's cards that have not been cast yet. */
   hand: HandCard[];
   /** Programs slotted as passives; always in effect. */
@@ -67,6 +71,8 @@ export interface CombatState extends CombatSnapshot {
   injectVirus: (enemyId: string) => void;
   /** Casts the hand card from Active slot `slot` at `hex`. Does nothing if that cast is not legal. */
   castSpell: (slot: number, hex: HexCoord) => void;
+  /** Hacks `hex`. Does nothing if that hack is not possible right now. */
+  hack: (hex: HexCoord, kind: HackKind) => void;
   /** Ends the player turn and plays out the enemy turn. */
   endTurn: () => Promise<void>;
 }
@@ -82,6 +88,7 @@ function snapshot(): CombatSnapshot {
     moveRange: combat.getMoveRange(),
     attackableEnemyIds: combat.getAttackableEnemies().map((enemy) => enemy.id),
     injectableEnemyIds: combat.getInjectableEnemies().map((enemy) => enemy.id),
+    hackTargets: combat.getHackTargets(),
     hand: combat.getHand(),
     passives: combat.deck.passives,
     terrainVersion: combat.terrainVersion,
@@ -142,13 +149,26 @@ export const useCombatStore = create<CombatState>((set, get) => {
       publish(combat.castSpell(slot, hex));
     },
 
+    hack: (hex, kind) => {
+      if (get().busy) return;
+      publish(combat.hack(hex, kind));
+    },
+
     endTurn: async () => {
       if (get().busy) return;
       // Outside the player turn this yields no events, and there is nothing to play out.
       if (!publish(combat.endPlayerTurn())) return;
       set({ busy: true });
 
+      // The player's turrets fire first, one at a time.
+      for (const turret of combat.getTurrets()) {
+        await sleep(timing.enemyActionDelaySeconds);
+        publish(combat.fireTurret(turret));
+      }
+
       for (const enemyId of combat.getEnemyTurnOrder()) {
+        // A turret or a trap can end the fight before every enemy has acted.
+        if (combat.phase !== 'ENEMY_TURN') break;
         // A breached enemy loses its turn here, or recovers; give that its own beat.
         const turnStart = combat.startEnemyTurn(enemyId);
         if (turnStart.length > 0) {
@@ -190,4 +210,10 @@ export function spellTargets(slot: number): HexCoord[] {
 export function previewSpell(slot: number, hex: HexCoord): SpellPreview | null {
   if (useCombatStore.getState().busy) return null;
   return combat.previewSpell(slot, hex);
+}
+
+/** What the player could do to `hex` in hack mode. Empty while busy or if it is not hackable. */
+export function hackOptions(hex: HexCoord): HackOption[] {
+  if (useCombatStore.getState().busy) return [];
+  return combat.getHackOptions(hex);
 }

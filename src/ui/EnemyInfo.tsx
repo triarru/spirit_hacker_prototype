@@ -18,6 +18,7 @@ export function EnemyInfo() {
   if (!enemy) return null;
 
   const { col, row } = enemy.position.toOffset();
+  const statuses = [enemy.stunTurns > 0 && 'stunned', enemy.slowTurns > 0 && 'slowed'].filter(Boolean);
   const { apCost, ramCost } = BREAK_RULES.injectVirus;
 
   return (
@@ -51,6 +52,12 @@ export function EnemyInfo() {
         </dd>
         <dt>Distance</dt>
         <dd>{player.position.distance(enemy.position)} hex</dd>
+        {statuses.length > 0 && (
+          <>
+            <dt>Status</dt>
+            <dd>{statuses.join(', ')}</dd>
+          </>
+        )}
       </dl>
       {enemy.breached && (
         <>

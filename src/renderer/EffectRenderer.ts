@@ -1,5 +1,6 @@
-import { Container, Text } from 'pixi.js';
+import { Container, Graphics, Text } from 'pixi.js';
 import type { CombatEvent } from '../core/combat/CombatManager';
+import type { HackKind } from '../core/combat/EnvironmentHack';
 import timing from '../core/data/timing.json';
 import { hexToPixel, type HexCoord } from '../core/hex/HexCoord';
 
@@ -13,8 +14,20 @@ const COLOR = {
   breach: 0xffffff,
   virus: 0xc084fc,
   muted: 0x94a3b8,
+  hack: 0x22d3ee,
+  trap: 0xfacc15,
   outline: 0x0b0f17,
 } as const;
+
+const HACK_LABEL: Record<HackKind, string> = {
+  TURRET: 'TURRET ONLINE',
+  TRAP: 'TRAP SET',
+  WALL: 'WALL UP',
+  BREAK_WALL: 'WALL DOWN',
+};
+
+/** How long a turret's shot stays on screen, in seconds. */
+const BEAM_SECONDS = 0.3;
 
 /** Where a popup starts relative to the hex center, and how far it floats up, in px. */
 const START_OFFSET_Y = -30;
@@ -33,6 +46,11 @@ interface Popup {
   elapsed: number;
 }
 
+interface Beam {
+  line: Graphics;
+  elapsed: number;
+}
+
 type DefendedEvent = Extract<CombatEvent, { type: 'defended' }>;
 
 function defendedLabel(event: DefendedEvent): string {
@@ -45,6 +63,7 @@ function defendedLabel(event: DefendedEvent): string {
 export class EffectRenderer {
   readonly container = new Container();
   private popups: Popup[] = [];
+  private beams: Beam[] = [];
 
   /** Turns combat events into their on-screen effects. */
   play(events: CombatEvent[], playerId: string): void {
@@ -86,6 +105,21 @@ export class EffectRenderer {
         case 'healed':
           spawn(event.at, `+${event.amount}`, COLOR.perfect, DAMAGE_FONT_SIZE);
           break;
+        case 'hacked':
+          spawn(event.at, HACK_LABEL[event.kind], COLOR.hack, CALLOUT_FONT_SIZE);
+          break;
+        case 'turretFired':
+          this.spawnBeam(event.at, event.targetAt);
+          break;
+        case 'turretExpired':
+          spawn(event.at, 'TURRET OFFLINE', COLOR.muted, CALLOUT_FONT_SIZE);
+          break;
+        case 'trapTriggered':
+          spawn(event.at, 'TRAP!', COLOR.trap, CALLOUT_FONT_SIZE);
+          break;
+        case 'slowed':
+          spawn(event.at, 'SLOWED', COLOR.trap, CALLOUT_FONT_SIZE);
+          break;
         case 'recovered':
           spawn(event.at, 'FIREWALL RESTORED', COLOR.muted, CALLOUT_FONT_SIZE);
           break;
@@ -113,6 +147,26 @@ export class EffectRenderer {
     if (finished.length > 0) {
       this.popups = this.popups.filter((popup) => popup.elapsed < timing.damagePopupSeconds);
     }
+
+    for (const beam of this.beams) {
+      beam.elapsed += deltaSeconds;
+      beam.line.alpha = Math.max(0, 1 - beam.elapsed / BEAM_SECONDS);
+    }
+    const spent = this.beams.filter((beam) => beam.elapsed >= BEAM_SECONDS);
+    for (const beam of spent) beam.line.destroy();
+    if (spent.length > 0) this.beams = this.beams.filter((beam) => beam.elapsed < BEAM_SECONDS);
+  }
+
+  /** A turret's shot: a line from the turret to its target that fades out. */
+  private spawnBeam(from: HexCoord, to: HexCoord): void {
+    const start = hexToPixel(from);
+    const end = hexToPixel(to);
+    const line = new Graphics()
+      .moveTo(start.x, start.y)
+      .lineTo(end.x, end.y)
+      .stroke({ width: 3, color: COLOR.hack, cap: 'round' });
+    this.container.addChild(line);
+    this.beams.push({ line, elapsed: 0 });
   }
 
   private spawnPopup(

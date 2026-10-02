@@ -45,6 +45,7 @@ export function makeRoom({
  */
 export function runEnemyPhase(combat: CombatManager): CombatEvent[] {
   const events: CombatEvent[] = [];
+  for (const turret of combat.getTurrets()) events.push(...combat.fireTurret(turret));
   for (const enemyId of combat.getEnemyTurnOrder()) {
     events.push(...combat.startEnemyTurn(enemyId));
     for (const action of combat.planEnemyTurn(enemyId)) {

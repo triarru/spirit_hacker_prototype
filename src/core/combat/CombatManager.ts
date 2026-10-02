@@ -15,6 +15,19 @@ import {
   tickBreach,
 } from './BreakSystem';
 import { resolveAttack, type Rng } from './CombatResolver';
+import {
+  applyHack,
+  HACK_RULES,
+  hackableHexes,
+  hackKindsAt,
+  hackRamCost,
+  tickTurret,
+  TRAP_ID,
+  turretHexes,
+  turretTarget,
+  TURRET_ID,
+  type HackKind,
+} from './EnvironmentHack';
 import { affordablePath, moveRange, stepPlayer } from './Movement';
 import {
   createDefensePrompt,
@@ -57,7 +70,12 @@ export type CombatEvent =
   | { /** The player cast a program at `at`. */ type: 'spellCast'; programId: string; programName: string; at: HexCoord }
   | { type: 'stunned'; entityId: string; at: HexCoord; turns: number }
   | { type: 'healed'; entityId: string; at: HexCoord; amount: number }
-  | { /** Temporary walls went up or came down. */ type: 'terrainChanged' }
+  | { /** Something standing on the grid changed: walls, turrets, traps. */ type: 'terrainChanged' }
+  | { /** The player hacked the hex at `at`. */ type: 'hacked'; kind: HackKind; at: HexCoord }
+  | { type: 'turretFired'; at: HexCoord; targetId: string; targetAt: HexCoord }
+  | { /** A turret ran out of turns. */ type: 'turretExpired'; at: HexCoord }
+  | { type: 'trapTriggered'; entityId: string; at: HexCoord }
+  | { type: 'slowed'; entityId: string; at: HexCoord; turns: number }
   | {
       /** The player turned a breached enemy on one of its allies. */
       type: 'virusInjected';
@@ -67,6 +85,15 @@ export type CombatEvent =
     }
   | { type: 'died'; entityId: string; at: HexCoord }
   | { type: 'phaseChanged'; phase: CombatPhase };
+
+/** One thing the player could do to a hex in hack mode. */
+export interface HackOption {
+  kind: HackKind;
+  apCost: number;
+  ramCost: number;
+  /** The player has the AP and RAM for it right now. */
+  affordable: boolean;
+}
 
 /** A card in the player's hand this turn. */
 export interface HandCard {
@@ -137,6 +164,8 @@ export class CombatManager {
   private readonly rng: Rng;
   /** Enemies sitting out the current enemy phase. */
   private readonly skipping = new Set<string>();
+  /** Enemies that move one hex less during the current enemy phase. */
+  private readonly slowed = new Set<string>();
 
   constructor(room: RoomState, rng: Rng = Math.random, deck: SpellDeck = createEmptyDeck()) {
     this.grid = room.grid;
@@ -276,14 +305,73 @@ export class CombatManager {
     ];
   }
 
+  // --- Environment hacks ---------------------------------------------------
+
+  /** Hexes the player could hack right now with at least one hack they can pay for. */
+  getHackTargets(): HexCoord[] {
+    if (this.phase !== 'PLAYER_TURN') return [];
+    return hackableHexes(this.grid, this.player.position).filter((hex) =>
+      this.getHackOptions(hex).some((option) => option.affordable),
+    );
+  }
+
+  /** What the player could do to `hex` in hack mode; empty if it is out of range or not hackable. */
+  getHackOptions(hex: HexCoord): HackOption[] {
+    if (this.phase !== 'PLAYER_TURN') return [];
+    const distance = this.player.position.distance(hex);
+    if (distance === 0 || distance > HACK_RULES.range) return [];
+
+    return hackKindsAt(this.grid, hex).map((kind) => {
+      const ramCost = hackRamCost(kind);
+      return {
+        kind,
+        apCost: HACK_RULES.apCost,
+        ramCost,
+        affordable: this.player.ap >= HACK_RULES.apCost && this.player.ram >= ramCost,
+      };
+    });
+  }
+
+  hack(hex: HexCoord, kind: HackKind): CombatEvent[] {
+    const option = this.getHackOptions(hex).find((candidate) => candidate.kind === kind);
+    if (!option?.affordable) return [];
+
+    this.player.ap -= option.apCost;
+    this.player.ram -= option.ramCost;
+    applyHack(this.grid, hex, kind);
+    return [{ type: 'hacked', kind, at: hex }, ...this.terrainChanged()];
+  }
+
   endPlayerTurn(): CombatEvent[] {
     if (this.phase !== 'PLAYER_TURN') return [];
     endPlayerTurn(this.player);
     this.skipping.clear();
+    this.slowed.clear();
     return this.enterPhase('ENEMY_TURN');
   }
 
   // --- Enemy turn ----------------------------------------------------------
+
+  /** Hexes with a running turret. Each should be fired once, before the enemies act. */
+  getTurrets(): HexCoord[] {
+    return this.phase === 'ENEMY_TURN' ? turretHexes(this.grid) : [];
+  }
+
+  /** One turret's turn: shoot the nearest enemy in range, then wind down by a turn. */
+  fireTurret(turretHex: HexCoord): CombatEvent[] {
+    if (this.phase !== 'ENEMY_TURN' || this.grid.getCell(turretHex)?.hacked !== 'TURRET') return [];
+
+    const events: CombatEvent[] = [];
+    const target = turretTarget(turretHex, this.enemies);
+    if (target) {
+      events.push({ type: 'turretFired', at: turretHex, targetId: target.id, targetAt: target.position });
+      events.push(...this.hitEnemy(TURRET_ID, target, HACK_RULES.turret.damage, null));
+    }
+
+    if (tickTurret(this.grid, turretHex)) events.push({ type: 'turretExpired', at: turretHex });
+    // The turns left on the turret changed either way, and that is drawn.
+    return [...events, ...this.terrainChanged(), ...this.checkEnd()];
+  }
 
   /** Ids of the enemies in the order they act this turn. */
   getEnemyTurnOrder(): string[] {
@@ -308,6 +396,11 @@ export class CombatManager {
     const stunned = enemy.stunTurns > 0;
     if (stunned) enemy.stunTurns -= 1;
 
+    if (enemy.slowTurns > 0) {
+      enemy.slowTurns -= 1;
+      this.slowed.add(enemy.id);
+    }
+
     if (breach === 'skip_turn' || stunned) {
       this.skipping.add(enemy.id);
       events.push({
@@ -324,7 +417,12 @@ export class CombatManager {
   planEnemyTurn(enemyId: string): EnemyAction[] {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN' || this.skipping.has(enemyId)) return [];
-    return planEnemyTurn(enemy, { grid: this.grid, player: this.player, rng: this.rng });
+
+    // The AI plans with the enemy as it is this turn: a slowed one covers one hex less.
+    const acting = this.slowed.has(enemyId)
+      ? { ...enemy, moveRange: Math.max(0, enemy.moveRange - 1) }
+      : enemy;
+    return planEnemyTurn(acting, { grid: this.grid, player: this.player, rng: this.rng });
   }
 
   /**
@@ -354,7 +452,11 @@ export class CombatManager {
       const from = enemy.position;
       if (from.distance(action.to) !== 1 || this.grid.isBlocked(action.to)) return [];
       this.grid.moveEntity(enemy, action.to);
-      return [{ type: 'moved', entityId: enemy.id, from, to: action.to }];
+      return [
+        { type: 'moved', entityId: enemy.id, from, to: action.to },
+        ...this.springTrap(enemy),
+        ...this.checkEnd(),
+      ];
     }
 
     if (!inAttackRange(enemy, enemy.position, this.player.position)) return [];
@@ -416,6 +518,28 @@ export class CombatManager {
       }
     }
     return events;
+  }
+
+  /** If the enemy just stepped onto a trap, sets it off. A trap works once. */
+  private springTrap(enemy: Enemy): CombatEvent[] {
+    const cell = this.grid.getCell(enemy.position);
+    if (!cell || cell.hacked !== 'TRAP') return [];
+    cell.hacked = null;
+
+    const events: CombatEvent[] = [
+      { type: 'trapTriggered', entityId: enemy.id, at: enemy.position },
+      ...this.hitEnemy(TRAP_ID, enemy, HACK_RULES.trap.damage, null),
+    ];
+    if (this.enemies.includes(enemy)) {
+      enemy.slowTurns = Math.max(enemy.slowTurns, HACK_RULES.trap.slowTurns);
+      events.push({
+        type: 'slowed',
+        entityId: enemy.id,
+        at: enemy.position,
+        turns: HACK_RULES.trap.slowTurns,
+      });
+    }
+    return [...events, ...this.terrainChanged()];
   }
 
   // --- Shared --------------------------------------------------------------

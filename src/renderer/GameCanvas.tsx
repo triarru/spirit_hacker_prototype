@@ -64,11 +64,13 @@ function mountGame(app: Application): () => void {
     const combat = useCombatStore.getState();
     const ui = useUIStore.getState();
     // Mid-action these would be redrawn on every step; hide them until input is accepted again.
-    // While a spell is being aimed, only its targets are shown: a click then means "cast".
-    const showActions = !combat.busy && ui.targetingSlot === null;
+    // While a spell is being aimed or hack mode is on, only those targets are shown:
+    // a click then means "cast" or "hack", not "move" or "attack".
+    const showActions = !combat.busy && ui.targetingSlot === null && !ui.hackMode;
     gridRenderer.drawRanges({
       move: showActions ? combat.moveRange : [],
       spell: ui.spellTargets,
+      hack: ui.hackMode ? combat.hackTargets : [],
       attack: showActions
         ? combat.enemies
             .filter((enemy) => combat.attackableEnemyIds.includes(enemy.id))
@@ -117,7 +119,8 @@ function mountGame(app: Application): () => void {
   const unsubscribeUI = useUIStore.subscribe((state, previous) => {
     if (
       state.spellTargets !== previous.spellTargets ||
-      state.targetingSlot !== previous.targetingSlot
+      state.targetingSlot !== previous.targetingSlot ||
+      state.hackMode !== previous.hackMode
     ) {
       drawRanges();
     }
@@ -143,10 +146,11 @@ function mountGame(app: Application): () => void {
   app.stage.on('pointermove', (event) => useUIStore.getState().setHoveredHex(hexUnderPointer(event)));
   app.stage.on('pointerdown', (event) => {
     const ui = useUIStore.getState();
-    // Right-click cancels a spell being aimed; otherwise it selects without acting,
+    // Right-click cancels a spell being aimed or hack mode; otherwise it selects without acting,
     // so an adjacent enemy can be inspected without attacking it.
     if (event.button === 2) ui.selectHex(hexUnderPointer(event));
-    else ui.clickHex(hexUnderPointer(event));
+    // The canvas fills the window, so its global coordinates are also the page's.
+    else ui.clickHex(hexUnderPointer(event), { x: event.global.x, y: event.global.y });
   });
   app.stage.on('pointerleave', () => useUIStore.getState().setHoveredHex(null));
 
@@ -155,6 +159,7 @@ function mountGame(app: Application): () => void {
 
   const tick = (ticker: Ticker): void => {
     const deltaSeconds = ticker.deltaMS / 1000;
+    gridRenderer.update(deltaSeconds);
     entityRenderer.update(deltaSeconds);
     effectRenderer.update(deltaSeconds);
     // The prompt's clock runs outside the store, so it is read fresh every frame.

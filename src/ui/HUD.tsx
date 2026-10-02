@@ -1,10 +1,16 @@
 import { useCombatStore } from '../stores/useCombatStore';
+import { useUIStore } from '../stores/useUIStore';
 
 export function HUD() {
   const player = useCombatStore((state) => state.player);
   const canEndTurn = useCombatStore((state) => state.phase === 'PLAYER_TURN' && !state.busy);
   const endTurn = useCombatStore((state) => state.endTurn);
   const passives = useCombatStore((state) => state.passives);
+  const canHack = useCombatStore(
+    (state) => state.phase === 'PLAYER_TURN' && !state.busy && state.hackTargets.length > 0,
+  );
+  const hackMode = useUIStore((state) => state.hackMode);
+  const toggleHackMode = useUIStore((state) => state.toggleHackMode);
 
   // AP above maxAp came from the bank, so the row grows to show those dots too.
   // AP still sitting in the bank shows as extra gold dots: earned, usable next turn.
@@ -60,6 +66,17 @@ export function HUD() {
           {dots}
         </div>
       </div>
+      <button
+        type="button"
+        className={`hack-button${hackMode ? ' hack-button-active' : ''}`}
+        disabled={!canHack}
+        onClick={(event) => {
+          event.currentTarget.blur();
+          toggleHackMode();
+        }}
+      >
+        Hack <kbd>H</kbd>
+      </button>
       <button
         type="button"
         className="end-turn"

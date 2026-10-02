@@ -9,13 +9,16 @@ export function isTerrainType(value: string): value is TerrainType {
   return (TERRAIN_TYPES as readonly string[]).includes(value);
 }
 
-export type HackType = 'TURRET' | 'TRAP' | 'WALL' | 'BREACHED_WALL';
+/** What a hack has left standing on a hex. Hacked walls are temporary walls, tracked by `barrierTurns`. */
+export type HackType = 'TURRET' | 'TRAP';
 
 export interface HexCell {
   readonly hex: HexCoord;
   terrain: TerrainType;
   entity: Entity | null;
   hacked: HackType | null;
+  /** Turns a turret on this hex keeps running; 0 when there is none. */
+  hackTurns: number;
   /** Turns a temporary wall on this hex still has to stand; 0 means there is none. */
   barrierTurns: number;
 }
@@ -49,6 +52,7 @@ export class HexGrid {
           terrain: 'FLOOR',
           entity: null,
           hacked: null,
+          hackTurns: 0,
           barrierTurns: 0,
         });
       }
