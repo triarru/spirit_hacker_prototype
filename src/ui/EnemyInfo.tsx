@@ -19,7 +19,7 @@ export function EnemyInfo() {
   if (!enemy) return null;
 
   const statuses = [enemy.stunTurns > 0 && 'stunned', enemy.slowTurns > 0 && 'slowed'].filter(Boolean);
-  const { apCost, ramCost } = BREAK_RULES.injectVirus;
+  const { apCost, ramCost, damage } = BREAK_RULES.injectVirus;
 
   return (
     <section className="panel enemy-info">
@@ -69,7 +69,7 @@ export function EnemyInfo() {
           >
             Inject virus
             <span>
-              {apCost} AP · {ramCost} RAM
+              {damage} dmg · {apCost} AP · {ramCost} RAM
             </span>
           </button>
           {enemy.id !== selectedEntityId && (

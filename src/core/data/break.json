@@ -4,5 +4,5 @@
   "breachDamageMultiplier": 1.5,
   "breachSkippedTurns": 1,
   "recoveryFirewallPenalty": 1,
-  "injectVirus": { "apCost": 1, "ramCost": 15 }
+  "injectVirus": { "apCost": 1, "ramCost": 15, "damage": 10 }
 }

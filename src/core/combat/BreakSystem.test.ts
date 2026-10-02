@@ -193,7 +193,7 @@ describe('inject virus', () => {
 
     expect(combat.player.ap).toBe(combat.player.maxAp - injectVirus.apCost);
     expect(combat.player.ram).toBe(combat.player.maxRam - injectVirus.ramCost);
-    expect(guardian.hp).toBe(guardian.maxHp - crawler.attackDamage);
+    expect(guardian.hp).toBe(guardian.maxHp - injectVirus.damage);
     // A forced blow is not one of the player's hits: the ally's firewall is untouched.
     expect(guardian.firewallCurrent).toBe(guardian.firewallMax);
     expect(ghost.hp).toBe(ghost.maxHp);
@@ -215,6 +215,16 @@ describe('inject virus', () => {
     expect(combat.getInjectableEnemies()).toEqual([]);
   });
 
+  it('does the same damage whichever enemy carries it, however hard that enemy hits', () => {
+    const { combat, crawler, guardian } = setup();
+    guardian.hp = guardian.maxHp = 500;
+    crawler.attackDamage = 99;
+
+    combat.injectVirus(crawler.id);
+
+    expect(guardian.hp).toBe(500 - injectVirus.damage);
+  });
+
   it('still hits a breached ally for amplified damage', () => {
     const { combat, crawler, guardian } = setup();
     guardian.hp = guardian.maxHp = 500;
@@ -222,7 +232,7 @@ describe('inject virus', () => {
 
     combat.injectVirus(crawler.id);
 
-    expect(guardian.hp).toBe(500 - Math.round(crawler.attackDamage * BREAK_RULES.breachDamageMultiplier));
+    expect(guardian.hp).toBe(500 - Math.round(injectVirus.damage * BREAK_RULES.breachDamageMultiplier));
   });
 
   it('needs enough AP and enough RAM', () => {
@@ -264,7 +274,7 @@ describe('inject virus', () => {
 
     expect(combat.injectVirus(crawler.id).length).toBeGreaterThan(0);
     expect(crawler.virusInjected).toBe(true);
-    expect(guardian.hp).toBe(500 - crawler.attackDamage);
+    expect(guardian.hp).toBe(500 - injectVirus.damage);
   });
 
   it('is blocked on a second attempt during the same breach', () => {
@@ -275,7 +285,7 @@ describe('inject virus', () => {
 
     expect(combat.getInjectableEnemies()).toEqual([]);
     expect(combat.injectVirus(crawler.id)).toEqual([]);
-    expect(guardian.hp).toBe(500 - crawler.attackDamage);
+    expect(guardian.hp).toBe(500 - injectVirus.damage);
     expect([combat.player.ap, combat.player.ram]).toEqual([apAfter, ramAfter]);
   });
 

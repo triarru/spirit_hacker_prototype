@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { BREAK_RULES } from '../combat/BreakSystem';
 import { CombatManager } from '../combat/CombatManager';
 import { at, makeRoom, runEnemyPhase, seededRng } from '../combat/testRoom';
 import { loadRoom, type RoomState } from '../data/RoomLoader';
@@ -423,7 +424,7 @@ describe('Guardian: guard and aggressive modes', () => {
       expect(stances(combat.injectVirus(crawler.id))).toEqual([]);
     }
 
-    expect(guardian.hp).toBe(500 - 3 * crawler.attackDamage);
+    expect(guardian.hp).toBe(500 - 3 * BREAK_RULES.injectVirus.damage);
     expect([guardian.aggressive, guardian.timesHitFromRange]).toEqual([false, 0]);
   });
 

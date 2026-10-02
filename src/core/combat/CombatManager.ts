@@ -337,7 +337,8 @@ export class CombatManager {
 
   /**
    * Makes a breached enemy attack its nearest ally once. The blow is forced,
-   * not one of the player's own hits: it hurts, but leaves the ally's firewall alone.
+   * not one of the player's own hits: it hurts, but leaves the ally's firewall
+   * alone. It does the virus's own damage, whichever enemy carries it out.
    */
   injectVirus(enemyId: string): CombatEvent[] {
     const enemy = this.getInjectableEnemies().find((candidate) => candidate.id === enemyId);
@@ -349,7 +350,7 @@ export class CombatManager {
     enemy.virusInjected = true;
     return [
       { type: 'virusInjected', entityId: enemy.id, targetId: target.id, at: enemy.position },
-      ...this.damageEnemy(enemy.id, target, enemy.attackDamage),
+      ...this.damageEnemy(enemy.id, target, BREAK_RULES.injectVirus.damage),
       ...this.checkEnd(),
     ];
   }
