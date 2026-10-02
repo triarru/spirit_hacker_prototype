@@ -53,8 +53,10 @@ interface Beam {
 
 type DefendedEvent = Extract<CombatEvent, { type: 'defended' }>;
 
+const MISS_LABEL = { early: 'TOO EARLY', late: 'TOO LATE', wrong_way: 'WRONG WAY' } as const;
+
 function defendedLabel(event: DefendedEvent): string {
-  if (event.kind === 'dodge') return 'PERFECT DODGE';
+  if (event.kind === 'dodge') return event.grade === 'good' ? 'DODGE' : 'PERFECT DODGE';
   if (event.grade === 'good') return 'PARRY';
   return event.apBanked > 0 ? `PERFECT PARRY  +${event.apBanked} AP` : 'PERFECT PARRY';
 }
@@ -83,6 +85,9 @@ export class EffectRenderer {
           spawn(event.at, defendedLabel(event), color, CALLOUT_FONT_SIZE);
           break;
         }
+        case 'defenseMissed':
+          spawn(event.at, MISS_LABEL[event.reason], COLOR.muted, CALLOUT_FONT_SIZE);
+          break;
         case 'attacked':
           if (event.dodged) {
             spawn(event.at, 'DODGE', COLOR.dodge, DAMAGE_FONT_SIZE);

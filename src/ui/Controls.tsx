@@ -5,7 +5,7 @@ const CONTROLS: Array<[keys: string, action: string]> = [
   ['H', 'hack a terminal, floor or wall'],
   ['E', 'end turn'],
   ['Space / Click', 'parry when the rings meet'],
-  ['Arrows / WASD', 'dodge the way the arrow points'],
+  ['Arrows / WASD', 'dodge the way the arrow points, as the shot lands'],
   ['Scroll', 'zoom'],
   ['R', 'try again, once the fight is over'],
 ];

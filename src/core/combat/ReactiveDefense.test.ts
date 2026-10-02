@@ -7,9 +7,11 @@ import {
   defenseEffects,
   dodgeAnswer,
   dodgeDestination,
-  gradeParry,
+  gradeTiming,
+  isAttempt,
   ReactiveDefense,
   type DefenseResult,
+  type DodgePrompt,
   type ParryPrompt,
 } from './ReactiveDefense';
 import { at, makeRoom } from './testRoom';
@@ -22,32 +24,61 @@ const PARRY_PROMPT: ParryPrompt = {
   attackerId: 'enemy',
   durationSeconds: parry.durationSeconds,
   perfectAtSeconds: parry.perfectAtSeconds,
-  perfectWindowSeconds: parry.perfectWindowSeconds,
+  perfectToleranceSeconds: parry.perfectToleranceSeconds,
   goodToleranceSeconds: parry.goodToleranceSeconds,
+  judgeToleranceSeconds: parry.judgeToleranceSeconds,
 };
 const PERFECT = parry.perfectAtSeconds;
-const HALF_WINDOW = parry.perfectWindowSeconds / 2;
+const PERFECT_TOLERANCE = parry.perfectToleranceSeconds;
+/** The first moment a press counts as an attempt. */
+const JUDGED_FROM = PERFECT - parry.judgeToleranceSeconds;
 
-describe('gradeParry', () => {
-  it('is perfect inside the window around the moment the rings meet', () => {
-    expect(gradeParry(PARRY_PROMPT, PERFECT)).toBe('perfect');
-    expect(gradeParry(PARRY_PROMPT, PERFECT - HALF_WINDOW + 0.001)).toBe('perfect');
-    expect(gradeParry(PARRY_PROMPT, PERFECT + HALF_WINDOW - 0.001)).toBe('perfect');
+/** The dodge prompt for a ghost standing straight above the player: the way out is down. */
+function dodgePrompt(): DodgePrompt {
+  const { player, enemies } = makeRoom({ player: at(3, 4), enemies: [['ghost_process', at(3, 2)]] });
+  const [ghost] = enemies;
+  if (!ghost) throw new Error('ghost missing');
+  const prompt = createDefensePrompt(ghost, player);
+  if (prompt?.kind !== 'dodge') throw new Error('expected a dodge prompt');
+  return prompt;
+}
+
+describe('gradeTiming', () => {
+  it('is perfect within the perfect tolerance of the mark, early or late', () => {
+    expect(gradeTiming(PARRY_PROMPT, PERFECT)).toBe('perfect');
+    expect(gradeTiming(PARRY_PROMPT, PERFECT - PERFECT_TOLERANCE + 0.001)).toBe('perfect');
+    expect(gradeTiming(PARRY_PROMPT, PERFECT + PERFECT_TOLERANCE - 0.001)).toBe('perfect');
   });
 
-  it('is good just outside the perfect window, early or late', () => {
-    expect(gradeParry(PARRY_PROMPT, PERFECT - HALF_WINDOW - 0.01)).toBe('good');
-    expect(gradeParry(PARRY_PROMPT, PERFECT + HALF_WINDOW + 0.01)).toBe('good');
-    expect(gradeParry(PARRY_PROMPT, PERFECT - parry.goodToleranceSeconds + 0.001)).toBe('good');
+  it('is good just outside the perfect tolerance, early or late', () => {
+    expect(gradeTiming(PARRY_PROMPT, PERFECT - PERFECT_TOLERANCE - 0.01)).toBe('good');
+    expect(gradeTiming(PARRY_PROMPT, PERFECT + PERFECT_TOLERANCE + 0.01)).toBe('good');
+    expect(gradeTiming(PARRY_PROMPT, PERFECT - parry.goodToleranceSeconds + 0.001)).toBe('good');
   });
 
   it('is a miss beyond the good tolerance', () => {
-    expect(gradeParry(PARRY_PROMPT, 0)).toBe('miss');
-    expect(gradeParry(PARRY_PROMPT, PERFECT - parry.goodToleranceSeconds - 0.01)).toBe('miss');
+    expect(gradeTiming(PARRY_PROMPT, 0)).toBe('miss');
+    expect(gradeTiming(PARRY_PROMPT, PERFECT - parry.goodToleranceSeconds - 0.01)).toBe('miss');
+    expect(gradeTiming(PARRY_PROMPT, PERFECT + parry.goodToleranceSeconds + 0.01)).toBe('miss');
+  });
+});
+
+describe('the timing rules in reactive.json', () => {
+  it.each([
+    ['parry', reactive.parry],
+    ['dodge', reactive.dodge],
+  ])('%s: the windows nest, and fit inside the prompt', (_name, rules) => {
+    expect(rules.perfectToleranceSeconds).toBeLessThan(rules.goodToleranceSeconds);
+    // Outside the good window but still judged: where an honest, mistimed press lands.
+    expect(rules.goodToleranceSeconds).toBeLessThan(rules.judgeToleranceSeconds);
+    expect(rules.perfectAtSeconds - rules.judgeToleranceSeconds).toBeGreaterThan(0);
+    // A late-but-good press still fits before the prompt ends.
+    expect(rules.perfectAtSeconds + rules.goodToleranceSeconds).toBeLessThanOrEqual(rules.durationSeconds);
   });
 
-  it('leaves room for a late-but-good parry before the prompt ends', () => {
-    expect(PERFECT + parry.goodToleranceSeconds).toBeLessThanOrEqual(parry.durationSeconds);
+  it('gives a dodge time to read the arrow before anything is judged', () => {
+    const { dodge } = reactive;
+    expect(dodge.perfectAtSeconds - dodge.judgeToleranceSeconds).toBeGreaterThanOrEqual(0.35);
   });
 });
 
@@ -133,14 +164,46 @@ describe('ReactiveDefense session', () => {
     expect(session.result).toEqual({ kind: 'parry', grade: 'perfect' });
   });
 
-  it('gives one attempt: an early press is a miss and later presses do nothing', () => {
+  it('ignores a press long before the mark: it is not an attempt, and the real one still counts', () => {
     const session = new ReactiveDefense(PARRY_PROMPT);
-    session.handleInput({ kind: 'parry' }, 0.2);
+    expect(isAttempt(PARRY_PROMPT, JUDGED_FROM - 0.01)).toBe(false);
+
+    session.handleInput({ kind: 'parry' }, 0.05);
+    session.handleInput({ kind: 'parry' }, JUDGED_FROM - 0.01);
+    expect(session.result).toBeNull();
+
     session.handleInput({ kind: 'parry' }, PERFECT);
-    expect(session.result).toEqual({ kind: 'parry', grade: 'miss' });
+    expect(session.result).toEqual({ kind: 'parry', grade: 'perfect' });
   });
 
-  it('times out as a miss', () => {
+  it('gives one attempt: a press near the mark but too early is a miss, and later presses do nothing', () => {
+    const session = new ReactiveDefense(PARRY_PROMPT);
+    session.handleInput({ kind: 'parry' }, JUDGED_FROM + 0.01);
+    session.handleInput({ kind: 'parry' }, PERFECT);
+
+    expect(session.result).toEqual({ kind: 'parry', grade: 'miss', missedBy: 'early' });
+  });
+
+  it('says a press past the good window was too late', () => {
+    const session = new ReactiveDefense(PARRY_PROMPT);
+    session.handleInput({ kind: 'parry' }, PERFECT + parry.goodToleranceSeconds + 0.01);
+
+    expect(session.result).toEqual({ kind: 'parry', grade: 'miss', missedBy: 'late' });
+  });
+
+  it('makes mashing lose: the first press that counts lands too early to be good', () => {
+    // Eight presses a second, at every possible phase.
+    const interval = 1 / 8;
+    for (let phase = 0; phase < interval; phase += 0.005) {
+      const session = new ReactiveDefense(PARRY_PROMPT);
+      for (let press = phase; press < parry.durationSeconds; press += interval) {
+        session.handleInput({ kind: 'parry' }, press);
+      }
+      expect(session.result?.grade).toBe('miss');
+    }
+  });
+
+  it('times out as a miss, with no reason given', () => {
     const session = new ReactiveDefense(PARRY_PROMPT);
     session.advanceTo(parry.durationSeconds);
     expect(session.result).toEqual({ kind: 'parry', grade: 'miss' });
@@ -156,22 +219,49 @@ describe('ReactiveDefense session', () => {
     expect(session.result).toBeNull();
   });
 
-  it('judges a dodge by direction, not timing', () => {
-    const { player, enemies } = makeRoom({ player: at(3, 4), enemies: [['ghost_process', at(3, 2)]] });
-    const [ghost] = enemies;
-    if (!ghost) throw new Error('ghost missing');
-    const prompt = createDefensePrompt(ghost, player);
-    if (prompt?.kind !== 'dodge') throw new Error('expected a dodge prompt');
-    // The ghost is above the player, so the way out is down.
-    expect(prompt.answer).toBe('down');
+  describe('dodge', () => {
+    const { dodge } = reactive;
+    const press = (direction: 'up' | 'down', atSeconds: number) => {
+      const session = new ReactiveDefense(dodgePrompt());
+      session.handleInput({ kind: 'dodge', direction }, atSeconds);
+      return session.result;
+    };
 
-    const right = new ReactiveDefense(prompt);
-    right.handleInput({ kind: 'dodge', direction: 'down' }, 0.01);
-    expect(right.result).toEqual({ kind: 'dodge', grade: 'perfect', direction: 'down' });
+    it('needs the right direction at the right moment to be perfect', () => {
+      expect(dodgePrompt().answer).toBe('down');
+      expect(press('down', dodge.perfectAtSeconds)).toEqual({ kind: 'dodge', grade: 'perfect', direction: 'down' });
+    });
 
-    const wrong = new ReactiveDefense(prompt);
-    wrong.handleInput({ kind: 'dodge', direction: 'up' }, 0.4);
-    expect(wrong.result).toEqual({ kind: 'dodge', grade: 'miss', direction: 'up' });
+    it('is only good when the direction is right but the timing is a little off', () => {
+      const off = (dodge.perfectToleranceSeconds + dodge.goodToleranceSeconds) / 2;
+      expect(press('down', dodge.perfectAtSeconds - off)).toEqual({ kind: 'dodge', grade: 'good', direction: 'down' });
+      expect(press('down', dodge.perfectAtSeconds + off)).toEqual({ kind: 'dodge', grade: 'good', direction: 'down' });
+    });
+
+    it('misses when the direction is right but the timing is well off', () => {
+      const off = dodge.goodToleranceSeconds + 0.02;
+      expect(press('down', dodge.perfectAtSeconds - off)).toMatchObject({ grade: 'miss', missedBy: 'early' });
+      expect(press('down', dodge.perfectAtSeconds + off)).toMatchObject({ grade: 'miss', missedBy: 'late' });
+    });
+
+    it('misses on the wrong direction, however good the timing', () => {
+      expect(press('up', dodge.perfectAtSeconds)).toEqual({
+        kind: 'dodge',
+        grade: 'miss',
+        direction: 'up',
+        missedBy: 'wrong_way',
+      });
+    });
+
+    it('ignores any key pressed while the arrow is still being read', () => {
+      const session = new ReactiveDefense(dodgePrompt());
+      session.handleInput({ kind: 'dodge', direction: 'up' }, 0.1);
+      session.handleInput({ kind: 'dodge', direction: 'down' }, 0.2);
+      expect(session.result).toBeNull();
+
+      session.handleInput({ kind: 'dodge', direction: 'down' }, dodge.perfectAtSeconds);
+      expect(session.result?.grade).toBe('perfect');
+    });
   });
 });
 
@@ -209,6 +299,11 @@ describe('defenseEffects', () => {
       damageMultiplier: 0,
       teleportHexes: reactive.dodge.perfectTeleportHexes,
     });
+    expect(defenseEffects({ kind: 'dodge', grade: 'good', direction: 'up' })).toMatchObject({
+      damageMultiplier: reactive.dodge.goodDamageMultiplier,
+      teleportHexes: 0,
+    });
+    expect(defenseEffects({ kind: 'dodge', grade: 'miss', direction: 'up', missedBy: 'late' }).damageMultiplier).toBe(1);
   });
 });
 
@@ -332,15 +427,43 @@ describe('enemy attacks resolved through CombatManager', () => {
     expect(events.map((event) => event.type)).toEqual(['defended']);
   });
 
-  it('wrong-way dodge: full damage, no step', () => {
-    const { combat, enemy } = attackWith('ghost_process', at(3, 2), {
+  it('good dodge: a fraction of the damage gets through, and there is no step away', () => {
+    const { combat, enemy, events } = attackWith('ghost_process', at(3, 2), {
+      kind: 'dodge',
+      grade: 'good',
+      direction: 'down',
+    });
+    const grazed = Math.round(enemy.attackDamage * reactive.dodge.goodDamageMultiplier);
+
+    expect(grazed).toBeGreaterThan(0);
+    expect(combat.player.hp).toBe(combat.player.maxHp - grazed);
+    expect(combat.player.position.equals(at(3, 4))).toBe(true);
+    expect(events.map((event) => event.type)).toEqual(['defended', 'attacked']);
+  });
+
+  it('wrong-way dodge: full damage, no step, and the reason is reported', () => {
+    const { combat, enemy, events } = attackWith('ghost_process', at(3, 2), {
       kind: 'dodge',
       grade: 'miss',
       direction: 'up',
+      missedBy: 'wrong_way',
     });
 
     expect(combat.player.hp).toBe(combat.player.maxHp - enemy.attackDamage);
     expect(combat.player.position.equals(at(3, 4))).toBe(true);
+    expect(events[0]).toEqual({
+      type: 'defenseMissed',
+      kind: 'dodge',
+      reason: 'wrong_way',
+      attackerId: enemy.id,
+      at: at(3, 4),
+    });
+    expect(events.map((event) => event.type)).toEqual(['defenseMissed', 'attacked']);
+  });
+
+  it('a mistimed parry reports whether it was early or late', () => {
+    const { events } = attackWith('guardian', at(3, 3), { kind: 'parry', grade: 'miss', missedBy: 'early' });
+    expect(events[0]).toMatchObject({ type: 'defenseMissed', kind: 'parry', reason: 'early' });
   });
 
   it('lets the end-turn dodge bonus save a missed defense', () => {

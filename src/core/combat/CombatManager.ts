@@ -35,6 +35,7 @@ import {
   dodgeDestination,
   type DefensePrompt,
   type DefenseResult,
+  type MissReason,
 } from './ReactiveDefense';
 import { endPlayerTurn, regenerate, startPlayerTurn, turnOrder } from './TurnManager';
 
@@ -63,6 +64,14 @@ export type CombatEvent =
       /** Where the player stood when the attack came in. */
       at: HexCoord;
       apBanked: number;
+    }
+  | {
+      /** The player tried to parry or dodge an attack and got it wrong. */
+      type: 'defenseMissed';
+      kind: DefenseResult['kind'];
+      reason: MissReason;
+      attackerId: string;
+      at: HexCoord;
     }
   | { /** An enemy's firewall hit zero. */ type: 'breached'; entityId: string; at: HexCoord }
   | { /** A breached enemy got its firewall back. */ type: 'recovered'; entityId: string; at: HexCoord }
@@ -586,6 +595,10 @@ export class CombatManager {
       if (damageFirewall(enemy, effects.firewallDamage)) {
         events.push({ type: 'breached', entityId: enemy.id, at: enemy.position });
       }
+    }
+
+    if (defense?.grade === 'miss' && defense.missedBy) {
+      events.push({ type: 'defenseMissed', kind: defense.kind, reason: defense.missedBy, attackerId: enemy.id, at });
     }
 
     // Whatever damage gets past the defense is resolved like any other hit,

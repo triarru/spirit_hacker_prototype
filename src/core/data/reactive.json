@@ -1,15 +1,21 @@
 {
   "parry": {
-    "durationSeconds": 1.2,
-    "perfectAtSeconds": 1.05,
-    "perfectWindowSeconds": 0.15,
-    "goodToleranceSeconds": 0.15,
+    "durationSeconds": 1.0,
+    "perfectAtSeconds": 0.85,
+    "perfectToleranceSeconds": 0.05,
+    "goodToleranceSeconds": 0.1,
+    "judgeToleranceSeconds": 0.25,
     "goodDamageMultiplier": 0.5,
     "perfectApBank": 1,
     "perfectFirewallDamage": 1
   },
   "dodge": {
-    "durationSeconds": 0.8,
+    "durationSeconds": 0.9,
+    "perfectAtSeconds": 0.65,
+    "perfectToleranceSeconds": 0.05,
+    "goodToleranceSeconds": 0.1,
+    "judgeToleranceSeconds": 0.25,
+    "goodDamageMultiplier": 0.3,
     "perfectTeleportHexes": 1
   }
 }

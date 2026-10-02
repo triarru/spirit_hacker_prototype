@@ -1,7 +1,8 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import {
   DIRECTION_VECTORS,
-  gradeParry,
+  gradeTiming,
+  isAttempt,
   type DefenseGrade,
   type DodgePrompt,
   type ParryPrompt,
@@ -32,9 +33,14 @@ const SHOT_GAP = 32;
 const DODGE_ARROW = { from: 34, to: 88, head: 18 } as const;
 const LABEL_OFFSET_Y = 46;
 
+/** The dodge beat: a disc on the player that swells and brightens toward the moment to press, in px. */
+const BEAT_RADIUS = { from: 12, to: 34 } as const;
+/** How faint the prompt is drawn while an input would still be too early to count. */
+const NOT_YET_ALPHA = 0.45;
+
 const LABELS = {
   parry: 'PARRY · Space / Click',
-  dodge: 'DODGE · press the arrow shown (or WASD)',
+  dodge: 'DODGE · press the arrow as the shot lands',
 } as const;
 
 /** Draws the reactive-defense prompt. Redrawn every frame from the live session. */
@@ -98,7 +104,7 @@ export class ReactivePromptRenderer {
       alpha: 0.16,
     });
     g.circle(center.x, center.y, TARGET_RADIUS).stroke({
-      width: prompt.perfectWindowSeconds * speed,
+      width: prompt.perfectToleranceSeconds * 2 * speed,
       color: COLOR.perfect,
       alpha: 0.4,
     });
@@ -106,8 +112,9 @@ export class ReactivePromptRenderer {
     const radius = Math.max(TARGET_RADIUS + (prompt.perfectAtSeconds - elapsed) * speed, 4);
     g.circle(center.x, center.y, radius).stroke({
       width: 3,
-      // Shows what pressing right now would score.
-      color: GRADE_COLOR[gradeParry(prompt, elapsed)],
+      // Shows what pressing right now would score; faint while a press would not count yet.
+      color: GRADE_COLOR[gradeTiming(prompt, elapsed)],
+      alpha: isAttempt(prompt, elapsed) ? 1 : NOT_YET_ALPHA,
     });
   }
 
@@ -125,12 +132,19 @@ export class ReactivePromptRenderer {
         .lineTo(impact.x, impact.y)
         .stroke({ width: 2, color: COLOR.shot, alpha: 0.35, cap: 'round' });
 
-      // The projectile reaches the player exactly when the time to react runs out.
-      const progress = Math.min(elapsed / prompt.durationSeconds, 1);
+      // The projectile lands exactly on the beat: the moment to press.
+      const progress = Math.min(elapsed / prompt.perfectAtSeconds, 1);
       g.circle(from.x + (impact.x - from.x) * progress, from.y + (impact.y - from.y) * progress, 6)
         .fill({ color: COLOR.miss })
         .stroke({ width: 2, color: COLOR.shot });
     }
+
+    // The beat: dim and small while the arrow is being read, brightest at the moment to press.
+    const closeness = Math.max(0, 1 - Math.abs(elapsed - prompt.perfectAtSeconds) / prompt.judgeToleranceSeconds);
+    g.circle(center.x, center.y, BEAT_RADIUS.from + (BEAT_RADIUS.to - BEAT_RADIUS.from) * closeness).fill({
+      color: GRADE_COLOR[gradeTiming(prompt, elapsed)],
+      alpha: 0.12 + 0.5 * closeness,
+    });
 
     // The instruction: an arrow from the player pointing the way to dodge, which is the key to press.
     const [dirX, dirY] = DIRECTION_VECTORS[prompt.answer];

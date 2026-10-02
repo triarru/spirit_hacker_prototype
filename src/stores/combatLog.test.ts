@@ -52,6 +52,17 @@ describe('describeEvents', () => {
     expect(text([defended('parry', 'perfect', 1)])).toEqual(['Perfect Parry! +1 AP']);
     expect(text([defended('parry', 'good', 0)])).toEqual(['Parry! Damage halved']);
     expect(text([defended('dodge', 'perfect', 0)])).toEqual(['Perfect Dodge!']);
+    expect(text([defended('dodge', 'good', 0)])).toEqual(['Dodge! Damage reduced']);
+  });
+
+  it('says what went wrong with a parry or dodge that missed', () => {
+    const missed = (kind: 'parry' | 'dodge', reason: 'early' | 'late' | 'wrong_way'): CombatEvent => ({
+      type: 'defenseMissed', kind, reason, attackerId: 'crawler_0', at: hex,
+    });
+    expect(text([missed('parry', 'early')])).toEqual(['Parry too early']);
+    expect(text([missed('parry', 'late')])).toEqual(['Parry too late']);
+    expect(text([missed('dodge', 'wrong_way')])).toEqual(['Dodged the wrong way']);
+    expect(text([missed('dodge', 'late')])).toEqual(['Dodge too late']);
   });
 
   it('tells apart who hit whom', () => {

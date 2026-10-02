@@ -1,5 +1,6 @@
 import type { CombatEvent } from '../core/combat/CombatManager';
 import { HACK_RULES, TRAP_ID, TURRET_ID, type HackKind } from '../core/combat/EnvironmentHack';
+import type { DefenseResult, MissReason } from '../core/combat/ReactiveDefense';
 
 /** How a line should be colored: who it is good or bad for. */
 export type LogTone = 'neutral' | 'player' | 'good' | 'bad' | 'system';
@@ -22,6 +23,11 @@ const HACK_TEXT: Record<HackKind, string> = {
   TRAP: 'Floor hacked → Trap set',
   WALL: `Floor hacked → Wall raised (${HACK_RULES.wall.turns} turns)`,
   BREAK_WALL: 'Wall hacked → Wall broken',
+};
+
+const MISS_TEXT: Record<DefenseResult['kind'], Record<MissReason, string>> = {
+  parry: { early: 'Parry too early', late: 'Parry too late', wrong_way: 'Parry missed' },
+  dodge: { early: 'Dodge too early', late: 'Dodge too late', wrong_way: 'Dodged the wrong way' },
 };
 
 type AttackedEvent = Extract<CombatEvent, { type: 'attacked' }>;
@@ -82,9 +88,13 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
         break;
 
       case 'defended':
-        if (event.kind === 'dodge') lines.push({ tone: 'good', text: 'Perfect Dodge!' });
-        else if (event.grade === 'good') lines.push({ tone: 'good', text: 'Parry! Damage halved' });
+        if (event.kind === 'dodge') {
+          lines.push({ tone: 'good', text: event.grade === 'good' ? 'Dodge! Damage reduced' : 'Perfect Dodge!' });
+        } else if (event.grade === 'good') lines.push({ tone: 'good', text: 'Parry! Damage halved' });
         else lines.push({ tone: 'good', text: `Perfect Parry! +${event.apBanked} AP` });
+        break;
+      case 'defenseMissed':
+        lines.push({ tone: 'bad', text: MISS_TEXT[event.kind][event.reason] });
         break;
 
       case 'breached':

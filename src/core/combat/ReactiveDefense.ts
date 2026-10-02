@@ -7,24 +7,37 @@ import type { HexGrid } from '../hex/HexGrid';
 export type Direction = 'up' | 'down' | 'left' | 'right';
 export type DefenseGrade = 'perfect' | 'good' | 'miss';
 
-/** Melee attack: act at the moment the shrinking ring meets the target ring. */
-export interface ParryPrompt {
-  kind: 'parry';
-  attackerId: string;
+/** When to act. Both prompts are timed the same way: a mark, and how far off it still counts. */
+export interface TimingWindow {
   durationSeconds: number;
-  /** The moment the two rings coincide. */
+  /** The moment to act. */
   perfectAtSeconds: number;
-  /** Total width of the perfect window, centered on `perfectAtSeconds`. */
-  perfectWindowSeconds: number;
-  /** A parry this far either side of `perfectAtSeconds` still counts as good. */
+  /** Acting within this much of the mark, either side, is perfect. */
+  perfectToleranceSeconds: number;
+  /** Acting within this much of the mark, either side, still counts as good. */
   goodToleranceSeconds: number;
+  /**
+   * How far ahead of the mark an input starts to count as an attempt. Anything
+   * earlier is taken for a stray press and ignored, so it does not use up the
+   * one attempt the player gets.
+   */
+  judgeToleranceSeconds: number;
 }
 
-/** Ranged attack: press the direction that takes the defender away from the shooter. */
-export interface DodgePrompt {
+/** Melee attack: act at the moment the shrinking ring meets the target ring. */
+export interface ParryPrompt extends TimingWindow {
+  kind: 'parry';
+  attackerId: string;
+}
+
+/**
+ * Ranged attack: press the direction that takes the defender away from the
+ * shooter, at the moment the shot lands. The time before inputs start to
+ * count is there for reading which direction that is.
+ */
+export interface DodgePrompt extends TimingWindow {
   kind: 'dodge';
   attackerId: string;
-  durationSeconds: number;
   /** The projectile flies from `from` to `to`. */
   from: HexCoord;
   to: HexCoord;
@@ -36,11 +49,16 @@ export type DefensePrompt = ParryPrompt | DodgePrompt;
 
 export type DefenseInput = { kind: 'parry' } | { kind: 'dodge'; direction: Direction };
 
+/** Why an attempt failed. An attack that was never answered has no reason. */
+export type MissReason = 'early' | 'late' | 'wrong_way';
+
 export interface DefenseResult {
   kind: DefensePrompt['kind'];
   grade: DefenseGrade;
   /** The direction pressed, for a dodge that was answered. */
   direction?: Direction;
+  /** What went wrong, for an attempt that missed. */
+  missedBy?: MissReason;
 }
 
 /** What a defense result does to the attack it answered. */
@@ -65,19 +83,12 @@ const NO_DEFENSE: DefenseEffects = {
 export function createDefensePrompt(attacker: Enemy, player: Player): DefensePrompt | null {
   switch (attacker.attackType) {
     case 'melee':
-      return {
-        kind: 'parry',
-        attackerId: attacker.id,
-        durationSeconds: reactiveJson.parry.durationSeconds,
-        perfectAtSeconds: reactiveJson.parry.perfectAtSeconds,
-        perfectWindowSeconds: reactiveJson.parry.perfectWindowSeconds,
-        goodToleranceSeconds: reactiveJson.parry.goodToleranceSeconds,
-      };
+      return { kind: 'parry', attackerId: attacker.id, ...timingOf(reactiveJson.parry) };
     case 'ranged':
       return {
         kind: 'dodge',
         attackerId: attacker.id,
-        durationSeconds: reactiveJson.dodge.durationSeconds,
+        ...timingOf(reactiveJson.dodge),
         from: attacker.position,
         to: player.position,
         answer: dodgeAnswer(attacker.position, player.position),
@@ -87,11 +98,28 @@ export function createDefensePrompt(attacker: Enemy, player: Player): DefensePro
   }
 }
 
-export function gradeParry(prompt: ParryPrompt, atSeconds: number): DefenseGrade {
-  const offBy = Math.abs(atSeconds - prompt.perfectAtSeconds);
-  if (offBy <= prompt.perfectWindowSeconds / 2) return 'perfect';
-  if (offBy <= prompt.goodToleranceSeconds) return 'good';
+/** Just the timing fields of a prompt's rules, so nothing else from the data file rides along. */
+function timingOf(rules: TimingWindow): TimingWindow {
+  return {
+    durationSeconds: rules.durationSeconds,
+    perfectAtSeconds: rules.perfectAtSeconds,
+    perfectToleranceSeconds: rules.perfectToleranceSeconds,
+    goodToleranceSeconds: rules.goodToleranceSeconds,
+    judgeToleranceSeconds: rules.judgeToleranceSeconds,
+  };
+}
+
+/** How well an input at `atSeconds` hits the mark. */
+export function gradeTiming(window: TimingWindow, atSeconds: number): DefenseGrade {
+  const offBy = Math.abs(atSeconds - window.perfectAtSeconds);
+  if (offBy <= window.perfectToleranceSeconds) return 'perfect';
+  if (offBy <= window.goodToleranceSeconds) return 'good';
   return 'miss';
+}
+
+/** Whether an input at `atSeconds` is close enough to the mark to count as an attempt at it. */
+export function isAttempt(window: TimingWindow, atSeconds: number): boolean {
+  return atSeconds >= window.perfectAtSeconds - window.judgeToleranceSeconds;
 }
 
 /**
@@ -153,6 +181,10 @@ export function defenseEffects(result: DefenseResult | null): DefenseEffects {
   if (!result || result.grade === 'miss') return NO_DEFENSE;
 
   if (result.kind === 'dodge') {
+    // Right way, slightly off the beat: most of the shot is avoided, but there is no clean step away.
+    if (result.grade === 'good') {
+      return { ...NO_DEFENSE, damageMultiplier: reactiveJson.dodge.goodDamageMultiplier };
+    }
     return {
       ...NO_DEFENSE,
       damageMultiplier: 0,
@@ -196,22 +228,31 @@ export class ReactiveDefense {
 
   /**
    * Registers what the player did `atSeconds` after the prompt appeared. The
-   * player gets one attempt: the first input that fits the prompt decides it,
-   * and input of the wrong kind (an arrow key during a parry) is ignored.
+   * player gets one attempt: the first input that fits the prompt and comes
+   * close enough to the mark decides it. Input of the wrong kind (an arrow key
+   * during a parry) and input long before the mark are ignored.
    */
   handleInput(input: DefenseInput, atSeconds: number): void {
     if (this.result || input.kind !== this.prompt.kind) return;
     if (atSeconds >= this.prompt.durationSeconds) return;
+    if (!isAttempt(this.prompt, atSeconds)) return;
 
     this.elapsedSeconds = Math.max(0, atSeconds);
+    const timing = gradeTiming(this.prompt, atSeconds);
+    const mistimed: MissReason = atSeconds < this.prompt.perfectAtSeconds ? 'early' : 'late';
+
     if (this.prompt.kind === 'parry') {
-      this.result = { kind: 'parry', grade: gradeParry(this.prompt, atSeconds) };
+      this.result =
+        timing === 'miss' ? { kind: 'parry', grade: 'miss', missedBy: mistimed } : { kind: 'parry', grade: timing };
     } else if (input.kind === 'dodge') {
-      this.result = {
-        kind: 'dodge',
-        grade: input.direction === this.prompt.answer ? 'perfect' : 'miss',
-        direction: input.direction,
-      };
+      const { direction } = input;
+      if (direction !== this.prompt.answer) {
+        this.result = { kind: 'dodge', grade: 'miss', direction, missedBy: 'wrong_way' };
+      } else if (timing === 'miss') {
+        this.result = { kind: 'dodge', grade: 'miss', direction, missedBy: mistimed };
+      } else {
+        this.result = { kind: 'dodge', grade: timing, direction };
+      }
     }
   }
 }
