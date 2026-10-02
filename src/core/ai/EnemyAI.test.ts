@@ -110,7 +110,10 @@ describe('random behavior (Ghost Process)', () => {
   });
 
   it('steps into range and fires in the same turn', () => {
-    const room = makeRoom({ cols: 1, rows: 5, player: at(0, 4), enemies: [['ghost_process', at(0, 1)]] });
+    // Four hexes apart, and it reaches three.
+    const room = makeRoom({ cols: 1, rows: 6, player: at(0, 5), enemies: [['ghost_process', at(0, 1)]] });
+    expect(room.enemies[0]?.attackRange).toBe(3);
+
     for (const roll of ROLLS) {
       expect(plan(room, roll).actions).toEqual([{ type: 'move', to: at(0, 2) }, attack]);
     }
