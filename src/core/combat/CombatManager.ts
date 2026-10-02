@@ -811,10 +811,18 @@ export class CombatManager {
     return Math.round(baseDamage * breachDamageMultiplier(enemy));
   }
 
-  /** Firewall bars a hit strips from this enemy, with every bonus counted in. */
+  /**
+   * Firewall bars a hit strips from this enemy, with every bonus counted in.
+   * Bonus bars cannot be what breaks a firewall that was still intact: unless
+   * the hit's own bars are enough for that, it takes a second hit.
+   */
   private firewallDamageOf(enemy: Enemy, tag: SpellTag | null, bonus: number): number {
     const weaknessBonus = tag === enemy.weakness ? this.deck.bonuses.weaknessFirewallBonus : 0;
-    return firewallDamageForHit(enemy, tag) + bonus + weaknessBonus;
+    const base = firewallDamageForHit(enemy, tag);
+    const total = base + bonus + weaknessBonus;
+
+    const intact = enemy.firewallCurrent === enemy.firewallMax;
+    return intact && base < enemy.firewallMax ? Math.min(total, enemy.firewallMax - 1) : total;
   }
 
   private previewHit(enemy: Enemy, plan: SpellPlan): SpellHitPreview {

@@ -444,6 +444,58 @@ describe('program tags against the crawler (weak to SHOCK)', () => {
     expect(guardian.firewallCurrent).toBe(guardian.firewallMax - BREAK_RULES.normalHitFirewallDamage - 1);
   });
 
+  describe('bonus bars and an intact firewall', () => {
+    /** brute_force with tran_yem under it (+1 bar), cast at an adjacent enemy of the given type. */
+    const strike = (typeId: string, prepare: (enemy: Enemy) => void = () => {}) => {
+      const combat = new CombatManager(
+        makeRoom({ player: at(3, 4), enemies: [[typeId, at(3, 3)]] }),
+        NEVER_DODGE,
+        new SpellDeck({
+          actives: [{ program: getProgram('brute_force'), modifier: getProgram('tran_yem') }],
+          passives: [],
+          handSize: 1,
+        }),
+      );
+      const [enemy] = combat.enemies;
+      if (!enemy) throw new Error('enemy missing');
+      enemy.hp = enemy.maxHp = 500;
+      prepare(enemy);
+      const preview = combat.previewSpell(0, enemy.position)?.hits[0];
+      combat.castSpell(0, enemy.position);
+      return { enemy, preview };
+    };
+
+    it('cannot be what breaks a firewall that was still intact', () => {
+      // FIRE on a ghost: 1 bar of its own, +1 from the modifier, against a 2-bar firewall.
+      const { enemy, preview } = strike('ghost_process');
+
+      expect(enemy.firewallMax).toBe(2);
+      expect([enemy.firewallCurrent, enemy.breached]).toEqual([1, false]);
+      expect(preview).toMatchObject({ firewallDamage: 1, breaches: false });
+    });
+
+    it('counts in full once the firewall has already been hit', () => {
+      const { enemy, preview } = strike('crawler', (crawler) => {
+        crawler.firewallCurrent = 2;
+      });
+
+      expect(enemy.breached).toBe(true);
+      expect(preview).toMatchObject({ firewallDamage: 2, breaches: true });
+    });
+
+    it('does not stop a hit whose own bars are enough: tran_yem still breaches a ghost outright', () => {
+      const combat = new CombatManager(
+        makeRoom({ player: at(3, 4), enemies: [['ghost_process', at(3, 3)]] }),
+        NEVER_DODGE,
+        new SpellDeck({ actives: [{ program: getProgram('tran_yem'), modifier: null }], passives: [], handSize: 1 }),
+      );
+      const [ghost] = combat.enemies;
+      if (!ghost) throw new Error('ghost missing');
+
+      expect(combat.castSpell(0, ghost.position).map((event) => event.type)).toContain('breached');
+    });
+  });
+
   it('nmap_scan reaches an enemy 4 hexes away, and no further', () => {
     const scanFrom = (crawlerAt: ReturnType<typeof at>) =>
       new CombatManager(
