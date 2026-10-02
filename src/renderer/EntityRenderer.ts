@@ -19,6 +19,7 @@ const HP_BAR = { width: 40, height: 5, top: -RADIUS - 15, back: 0x1e293b, fill: 
 const PIP = { width: 7, height: 4, gap: 2, top: -RADIUS - 8, intact: 0x22d3ee, broken: 0x1e293b } as const;
 const WEAKNESS_DOT_RADIUS = 2.5;
 const BREACH_RING = { radius: RADIUS + 7, color: 0xffffff } as const;
+const STUN_RING = { radius: RADIUS + 4, color: 0xfacc15 } as const;
 
 type ShapeDrawer = (g: Graphics) => void;
 
@@ -61,6 +62,7 @@ interface Tween {
 interface EnemyStatus {
   strip: Graphics;
   breachRing: Graphics;
+  stunRing: Graphics;
   flash: Graphics;
   /** What the strip currently shows, to skip redraws when nothing changed. */
   shown: string;
@@ -170,16 +172,20 @@ export class EntityRenderer {
     breachRing.circle(0, 0, BREACH_RING.radius).stroke({ width: 2, color: BREACH_RING.color });
     breachRing.visible = false;
 
+    const stunRing = new Graphics();
+    stunRing.circle(0, 0, STUN_RING.radius).stroke({ width: 2, color: STUN_RING.color });
+    stunRing.visible = false;
+
     const flash = new Graphics();
     flash.circle(0, 0, RADIUS + 2).fill({ color: 0xffffff });
     flash.alpha = 0;
 
     // Siblings of the shape, not children, so a translucent enemy keeps solid bars.
     const strip = new Graphics();
-    root.addChild(breachRing, shape, flash, strip);
+    root.addChild(breachRing, stunRing, shape, flash, strip);
     return {
       root,
-      status: { strip, breachRing, flash, shown: '', flashElapsed: null },
+      status: { strip, breachRing, stunRing, flash, shown: '', flashElapsed: null },
       hexKey,
       tween: null,
     };
@@ -187,10 +193,11 @@ export class EntityRenderer {
 }
 
 function updateStatus(status: EnemyStatus, enemy: Enemy): void {
-  const showing = `${enemy.hp}/${enemy.firewallCurrent}/${enemy.breached}`;
+  const showing = `${enemy.hp}/${enemy.firewallCurrent}/${enemy.breached}/${enemy.stunTurns}`;
   if (status.shown === showing) return;
   status.shown = showing;
   status.breachRing.visible = enemy.breached;
+  status.stunRing.visible = enemy.stunTurns > 0;
 
   const g = status.strip.clear();
 

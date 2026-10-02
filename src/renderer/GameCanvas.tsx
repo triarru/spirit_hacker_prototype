@@ -2,15 +2,21 @@ import { useEffect, useRef } from 'react';
 import { Application, Container, type FederatedPointerEvent, type Ticker } from 'pixi.js';
 import { pixelToHex, type HexCoord } from '../core/hex/HexCoord';
 import { useCombatStore } from '../stores/useCombatStore';
-import { selectSpellRange, useUIStore } from '../stores/useUIStore';
+import { useUIStore } from '../stores/useUIStore';
 import { EffectRenderer } from './EffectRenderer';
 import { EntityRenderer } from './EntityRenderer';
 import { HexGridRenderer } from './HexGridRenderer';
+import { PreviewRenderer } from './PreviewRenderer';
 import { ReactivePromptRenderer } from './ReactivePrompt';
 
 const BACKGROUND = 0x0b0f17;
 /** Free space kept between the grid and the canvas edge, in px. */
 const PADDING = 32;
+/**
+ * Height kept clear at the bottom of the canvas for the spell bar, in px: its hint line,
+ * a row of cards at their tallest (one with a modifier), and the margins around them.
+ */
+const SPELL_BAR_RESERVE = 186;
 const MAX_ZOOM = 1.5;
 
 /**
@@ -23,9 +29,11 @@ function mountGame(app: Application): () => void {
   const entityRenderer = new EntityRenderer();
   const effectRenderer = new EffectRenderer();
   const promptRenderer = new ReactivePromptRenderer();
+  const previewRenderer = new PreviewRenderer();
   world.addChild(
     gridRenderer.container,
     entityRenderer.container,
+    previewRenderer.container,
     promptRenderer.container,
     effectRenderer.container,
   );
@@ -34,15 +42,16 @@ function mountGame(app: Application): () => void {
   const layout = (): void => {
     const bounds = gridRenderer.getBounds(useCombatStore.getState().grid);
     const { width, height } = app.screen;
+    const availableHeight = height - PADDING - SPELL_BAR_RESERVE;
     const scale = Math.min(
       (width - PADDING * 2) / bounds.width,
-      (height - PADDING * 2) / bounds.height,
+      availableHeight / bounds.height,
       MAX_ZOOM,
     );
     world.scale.set(scale);
     world.position.set(
       (width - bounds.width * scale) / 2 - bounds.x * scale,
-      (height - bounds.height * scale) / 2 - bounds.y * scale,
+      PADDING + (availableHeight - bounds.height * scale) / 2 - bounds.y * scale,
     );
   };
 
@@ -55,11 +64,12 @@ function mountGame(app: Application): () => void {
     const combat = useCombatStore.getState();
     const ui = useUIStore.getState();
     // Mid-action these would be redrawn on every step; hide them until input is accepted again.
-    const idle = !combat.busy;
+    // While a spell is being aimed, only its targets are shown: a click then means "cast".
+    const showActions = !combat.busy && ui.targetingSlot === null;
     gridRenderer.drawRanges({
-      move: idle ? combat.moveRange : [],
-      spell: selectSpellRange(combat, ui.spellPreviewRange),
-      attack: idle
+      move: showActions ? combat.moveRange : [],
+      spell: ui.spellTargets,
+      attack: showActions
         ? combat.enemies
             .filter((enemy) => combat.attackableEnemyIds.includes(enemy.id))
             .map((enemy) => enemy.position)
@@ -85,8 +95,14 @@ function mountGame(app: Application): () => void {
   drawCursor();
   gridRenderer.drawPath(useUIStore.getState().path);
 
+  const drawPreview = (): void => {
+    previewRenderer.draw(useUIStore.getState().spellPreview, useCombatStore.getState().player.position);
+  };
+
   const unsubscribeCombat = useCombatStore.subscribe((state, previous) => {
-    if (state.grid !== previous.grid) drawTerrain();
+    if (state.grid !== previous.grid || state.terrainVersion !== previous.terrainVersion) {
+      drawTerrain();
+    }
     syncEntities();
     drawRanges();
     drawCursor();
@@ -99,7 +115,13 @@ function mountGame(app: Application): () => void {
     }
   });
   const unsubscribeUI = useUIStore.subscribe((state, previous) => {
-    if (state.spellPreviewRange !== previous.spellPreviewRange) drawRanges();
+    if (
+      state.spellTargets !== previous.spellTargets ||
+      state.targetingSlot !== previous.targetingSlot
+    ) {
+      drawRanges();
+    }
+    if (state.spellPreview !== previous.spellPreview) drawPreview();
     if (state.path !== previous.path) gridRenderer.drawPath(state.path);
     if (
       state.hoveredHex !== previous.hoveredHex ||
@@ -121,7 +143,8 @@ function mountGame(app: Application): () => void {
   app.stage.on('pointermove', (event) => useUIStore.getState().setHoveredHex(hexUnderPointer(event)));
   app.stage.on('pointerdown', (event) => {
     const ui = useUIStore.getState();
-    // Right-click selects without acting, so an adjacent enemy can be inspected without attacking it.
+    // Right-click cancels a spell being aimed; otherwise it selects without acting,
+    // so an adjacent enemy can be inspected without attacking it.
     if (event.button === 2) ui.selectHex(hexUnderPointer(event));
     else ui.clickHex(hexUnderPointer(event));
   });

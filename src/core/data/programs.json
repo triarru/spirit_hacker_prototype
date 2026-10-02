@@ -1,0 +1,129 @@
+{
+  "brute_force": {
+    "name": "brute_force()",
+    "displayName": "Cưỡng Phá",
+    "category": "Attack",
+    "tag": "SHOCK",
+    "tier": 1,
+    "resourceType": "RAM",
+    "active": {
+      "apCost": 1,
+      "ramCost": 8,
+      "qiCost": 0,
+      "targeting": "ENEMY",
+      "range": 1,
+      "aoe": 0,
+      "damage": 20,
+      "effects": []
+    },
+    "modifier": { "description": "Host spell deals +8 damage.", "modifyFn": "addDamage", "value": 8 },
+    "passive": { "description": "Basic attack deals +5 damage.", "passiveFn": "basicAttackDamage", "value": 5 }
+  },
+  "ping_flood": {
+    "name": "ping_flood()",
+    "displayName": "Lũ Tín Hiệu",
+    "category": "Attack",
+    "tag": "CORRUPT",
+    "tier": 1,
+    "resourceType": "RAM",
+    "active": {
+      "apCost": 2,
+      "ramCost": 12,
+      "qiCost": 0,
+      "targeting": "LINE",
+      "range": 3,
+      "aoe": 0,
+      "damage": 12,
+      "effects": []
+    },
+    "modifier": { "description": "Host spell also hits enemies next to its target.", "modifyFn": "addAoe", "value": 1 },
+    "passive": { "description": "+5 RAM at the start of each turn.", "passiveFn": "ramPerTurn", "value": 5 }
+  },
+  "firewall_up": {
+    "name": "firewall_up()",
+    "displayName": "Dựng Tường Lửa",
+    "category": "Defense",
+    "tag": "ICE",
+    "tier": 1,
+    "resourceType": "RAM",
+    "active": {
+      "apCost": 1,
+      "ramCost": 10,
+      "qiCost": 0,
+      "targeting": "FLOOR",
+      "range": 2,
+      "aoe": 0,
+      "damage": 0,
+      "effects": [{ "type": "createWall", "count": 2, "turns": 3 }]
+    },
+    "modifier": { "description": "Host spell costs 4 less RAM or Qi.", "modifyFn": "reduceCost", "value": 4 },
+    "passive": { "description": "Take 2 less damage from every hit.", "passiveFn": "damageReduction", "value": 2 }
+  },
+  "incense_burn": {
+    "name": "incense_burn()",
+    "displayName": "Đốt Hương",
+    "category": "Spirit",
+    "tag": "FIRE",
+    "tier": 1,
+    "resourceType": "QI",
+    "active": {
+      "apCost": 1,
+      "ramCost": 0,
+      "qiCost": 10,
+      "targeting": "SELF",
+      "range": 0,
+      "aoe": 0,
+      "damage": 0,
+      "effects": [
+        { "type": "heal", "amount": 15 },
+        { "type": "revealFog", "radius": 3 }
+      ]
+    },
+    "modifier": { "description": "Casting the host spell heals you for 5.", "modifyFn": "addHeal", "value": 5 },
+    "passive": { "description": "Recover 3 HP at the start of each turn.", "passiveFn": "hpPerTurn", "value": 3 }
+  },
+  "tran_yem": {
+    "name": "tran_yem()",
+    "displayName": "Trấn Yểm",
+    "category": "Seal",
+    "tag": "PURE",
+    "tier": 1,
+    "resourceType": "QI",
+    "active": {
+      "apCost": 2,
+      "ramCost": 0,
+      "qiCost": 12,
+      "targeting": "ENEMY",
+      "range": 2,
+      "aoe": 0,
+      "damage": 0,
+      "effects": [{ "type": "stun", "turns": 1 }]
+    },
+    "modifier": { "description": "Host spell strips 1 extra firewall bar.", "modifyFn": "addFirewallDamage", "value": 1 },
+    "passive": { "description": "+3 Qi at the start of each turn.", "passiveFn": "qiPerTurn", "value": 3 }
+  },
+  "nmap_scan": {
+    "name": "nmap_scan()",
+    "displayName": "Dò Mạng",
+    "category": "Utility",
+    "tag": "SHOCK",
+    "tier": 1,
+    "resourceType": "RAM",
+    "active": {
+      "apCost": 1,
+      "ramCost": 5,
+      "qiCost": 0,
+      "targeting": "ANY",
+      "range": null,
+      "aoe": 0,
+      "damage": 0,
+      "effects": [{ "type": "revealFog", "radius": 6 }]
+    },
+    "modifier": { "description": "Host spell has +1 range.", "modifyFn": "addRange", "value": 1 },
+    "passive": {
+      "description": "Hits on an enemy's weakness strip 1 extra firewall bar.",
+      "passiveFn": "weaknessFirewallBonus",
+      "value": 1
+    }
+  }
+}

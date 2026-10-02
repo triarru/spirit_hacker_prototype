@@ -1,4 +1,5 @@
 import enemiesJson from '../data/enemies.json';
+import { parseOneOf } from '../data/parse';
 import type { HexCoord } from '../hex/HexCoord';
 import { SPELL_TAGS, type SpellTag } from '../programs/Program';
 import type { Entity } from './Entity';
@@ -17,6 +18,8 @@ export interface Enemy extends Entity {
   breached: boolean;
   /** Turns a breached enemy still has to sit out before it can recover. */
   breachSkipsLeft: number;
+  /** Turns this enemy will lose to a stun. */
+  stunTurns: number;
   weakness: SpellTag;
   behaviorType: BehaviorType;
   attackType: AttackType;
@@ -39,13 +42,6 @@ interface EnemyDefinition {
 
 const DEFINITIONS: Record<string, EnemyDefinition> = enemiesJson;
 
-/** Narrows a string read from JSON to one of the allowed literals, or fails loudly. */
-function parseOneOf<T extends string>(allowed: readonly T[], value: string, what: string): T {
-  const match = allowed.find((candidate) => candidate === value);
-  if (match === undefined) throw new Error(`Unknown ${what} "${value}"`);
-  return match;
-}
-
 export function createEnemy(typeId: string, id: string, position: HexCoord): Enemy {
   const definition = DEFINITIONS[typeId];
   if (!definition) throw new Error(`Unknown enemy type "${typeId}"`);
@@ -63,6 +59,7 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
     firewallCurrent: definition.firewall,
     breached: false,
     breachSkipsLeft: 0,
+    stunTurns: 0,
     weakness: parseOneOf(SPELL_TAGS, definition.weakness, `weakness of ${typeId}`),
     behaviorType: parseOneOf(BEHAVIOR_TYPES, definition.behavior, `behavior of ${typeId}`),
     attackType: parseOneOf(ATTACK_TYPES, definition.attack.type, `attack type of ${typeId}`),

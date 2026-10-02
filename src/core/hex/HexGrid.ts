@@ -16,6 +16,8 @@ export interface HexCell {
   terrain: TerrainType;
   entity: Entity | null;
   hacked: HackType | null;
+  /** Turns a temporary wall on this hex still has to stand; 0 means there is none. */
+  barrierTurns: number;
 }
 
 interface TerrainRule {
@@ -42,7 +44,13 @@ export class HexGrid {
     for (let col = 0; col < cols; col++) {
       for (let row = 0; row < rows; row++) {
         const hex = HexCoord.fromOffset(col, row);
-        this.cells.set(hex.key(), { hex, terrain: 'FLOOR', entity: null, hacked: null });
+        this.cells.set(hex.key(), {
+          hex,
+          terrain: 'FLOOR',
+          entity: null,
+          hacked: null,
+          barrierTurns: 0,
+        });
       }
     }
   }
@@ -63,10 +71,26 @@ export class HexGrid {
     this.requireCell(hex).terrain = terrain;
   }
 
-  /** Terrain allows standing here. Ignores entities. */
+  /** Terrain allows standing here, and no temporary wall is in the way. Ignores entities. */
   isWalkable(hex: HexCoord): boolean {
     const cell = this.getCell(hex);
-    return cell !== undefined && TERRAIN_RULES[cell.terrain].walkable;
+    return cell !== undefined && TERRAIN_RULES[cell.terrain].walkable && cell.barrierTurns === 0;
+  }
+
+  /** Raises a temporary wall that stands for `turns` turns. */
+  placeBarrier(hex: HexCoord, turns: number): void {
+    this.requireCell(hex).barrierTurns = turns;
+  }
+
+  /** Ages every temporary wall by one turn. Returns true if any of them came down. */
+  tickBarriers(): boolean {
+    let expired = false;
+    for (const cell of this.cells.values()) {
+      if (cell.barrierTurns === 0) continue;
+      cell.barrierTurns -= 1;
+      if (cell.barrierTurns === 0) expired = true;
+    }
+    return expired;
   }
 
   /** Nothing can move into this hex right now: off-grid, solid terrain, or occupied. */

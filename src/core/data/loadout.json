@@ -1,0 +1,12 @@
+{
+  "activeSlots": 4,
+  "passiveSlots": 2,
+  "handSize": 3,
+  "actives": [
+    { "program": "brute_force", "modifier": "nmap_scan" },
+    { "program": "ping_flood", "modifier": null },
+    { "program": "tran_yem", "modifier": null },
+    { "program": "firewall_up", "modifier": null }
+  ],
+  "passives": ["incense_burn"]
+}

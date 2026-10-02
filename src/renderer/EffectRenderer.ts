@@ -78,7 +78,13 @@ export class EffectRenderer {
           spawn(event.at, 'BREACHED!', COLOR.breach, CALLOUT_FONT_SIZE);
           break;
         case 'turnSkipped':
-          spawn(event.at, 'STUNNED', COLOR.muted, CALLOUT_FONT_SIZE);
+          spawn(event.at, 'SKIPS TURN', COLOR.muted, CALLOUT_FONT_SIZE);
+          break;
+        case 'stunned':
+          spawn(event.at, 'STUNNED', COLOR.good, CALLOUT_FONT_SIZE);
+          break;
+        case 'healed':
+          spawn(event.at, `+${event.amount}`, COLOR.perfect, DAMAGE_FONT_SIZE);
           break;
         case 'recovered':
           spawn(event.at, 'FIREWALL RESTORED', COLOR.muted, CALLOUT_FONT_SIZE);

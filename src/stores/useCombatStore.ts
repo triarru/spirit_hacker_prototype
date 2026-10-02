@@ -1,5 +1,11 @@
 import { create } from 'zustand';
-import { CombatManager, type CombatEvent, type CombatPhase } from '../core/combat/CombatManager';
+import {
+  CombatManager,
+  type CombatEvent,
+  type CombatPhase,
+  type HandCard,
+  type SpellPreview,
+} from '../core/combat/CombatManager';
 import {
   ReactiveDefense,
   type DefensePrompt,
@@ -11,6 +17,8 @@ import type { Enemy } from '../core/entities/Enemy';
 import type { Player } from '../core/entities/Player';
 import type { HexCoord } from '../core/hex/HexCoord';
 import type { HexGrid } from '../core/hex/HexGrid';
+import type { Program } from '../core/programs/Program';
+import { createStarterDeck } from '../core/programs/SpellDeck';
 import { runReactivePrompt } from './reactiveLoop';
 
 const ROOM_ID = 'prototype_room';
@@ -19,7 +27,7 @@ const ROOM_ID = 'prototype_room';
  * The live game. Core logic mutates it in place; nothing outside this module
  * reads it directly — everyone else sees the snapshots published below.
  */
-const combat = new CombatManager(loadRoom(ROOM_ID));
+const combat = new CombatManager(loadRoom(ROOM_ID), Math.random, createStarterDeck());
 
 interface CombatSnapshot {
   grid: HexGrid;
@@ -32,6 +40,12 @@ interface CombatSnapshot {
   attackableEnemyIds: string[];
   /** Breached enemies the player can inject a virus into right now. */
   injectableEnemyIds: string[];
+  /** This turn's cards that have not been cast yet. */
+  hand: HandCard[];
+  /** Programs slotted as passives; always in effect. */
+  passives: readonly Program[];
+  /** Changes whenever temporary walls go up or come down. */
+  terrainVersion: number;
 }
 
 export interface CombatState extends CombatSnapshot {
@@ -51,6 +65,8 @@ export interface CombatState extends CombatSnapshot {
   attackEnemy: (enemyId: string) => void;
   /** Turns a breached enemy on its nearest ally. Does nothing if that is not possible right now. */
   injectVirus: (enemyId: string) => void;
+  /** Casts the hand card from Active slot `slot` at `hex`. Does nothing if that cast is not legal. */
+  castSpell: (slot: number, hex: HexCoord) => void;
   /** Ends the player turn and plays out the enemy turn. */
   endTurn: () => Promise<void>;
 }
@@ -66,6 +82,9 @@ function snapshot(): CombatSnapshot {
     moveRange: combat.getMoveRange(),
     attackableEnemyIds: combat.getAttackableEnemies().map((enemy) => enemy.id),
     injectableEnemyIds: combat.getInjectableEnemies().map((enemy) => enemy.id),
+    hand: combat.getHand(),
+    passives: combat.deck.passives,
+    terrainVersion: combat.terrainVersion,
   };
 }
 
@@ -118,6 +137,11 @@ export const useCombatStore = create<CombatState>((set, get) => {
       publish(combat.injectVirus(enemyId));
     },
 
+    castSpell: (slot, hex) => {
+      if (get().busy) return;
+      publish(combat.castSpell(slot, hex));
+    },
+
     endTurn: async () => {
       if (get().busy) return;
       // Outside the player turn this yields no events, and there is nothing to play out.
@@ -154,4 +178,16 @@ export const useCombatStore = create<CombatState>((set, get) => {
 export function previewPath(hex: HexCoord): HexCoord[] {
   if (useCombatStore.getState().busy) return [];
   return combat.getPathTo(hex);
+}
+
+/** Hexes the hand card in `slot` can be aimed at right now. Empty while busy or if it cannot be cast. */
+export function spellTargets(slot: number): HexCoord[] {
+  if (useCombatStore.getState().busy) return [];
+  return combat.getSpellTargets(slot);
+}
+
+/** What casting the hand card in `slot` at `hex` would do, or null if that cast is not legal. */
+export function previewSpell(slot: number, hex: HexCoord): SpellPreview | null {
+  if (useCombatStore.getState().busy) return null;
+  return combat.previewSpell(slot, hex);
 }

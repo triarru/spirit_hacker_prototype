@@ -96,7 +96,11 @@ body,
   display: grid;
   grid-template-columns: 76px 1fr;
   gap: 2px 8px;
-  margin: 0 0 8px;
+  margin: 0;
+}
+
+.enemy-info dl {
+  margin-bottom: 8px;
 }
 
 .panel dt {
@@ -343,16 +347,6 @@ body,
   background: var(--gold);
 }
 
-.swatch {
-  width: 10px;
-  height: 10px;
-  border-radius: 2px;
-}
-
-.swatch-spell {
-  background: var(--spell);
-}
-
 .bar {
   height: 6px;
   border-radius: 3px;
@@ -370,4 +364,128 @@ body,
 
 .bar-ram {
   background: linear-gradient(90deg, #0891b2, var(--cyan));
+}
+
+.bar-qi {
+  background: linear-gradient(90deg, #ca8a04, var(--gold));
+}
+
+.passives {
+  display: grid;
+  gap: 4px;
+  margin: 2px 0 0;
+  padding: 8px 0 0;
+  border-top: 1px solid var(--border);
+  list-style: none;
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.passives strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.spell-bar {
+  bottom: 14px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: grid;
+  justify-items: center;
+  gap: 6px;
+}
+
+.spell-bar-hint {
+  margin: 0;
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  color: var(--text-dim);
+}
+
+.spell-cards {
+  display: flex;
+  gap: 10px;
+}
+
+.spell-card {
+  display: grid;
+  align-content: start;
+  gap: 2px;
+  width: 178px;
+  min-height: 100px;
+  padding: 8px 10px 9px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--tag);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  pointer-events: auto;
+}
+
+.spell-card:hover:not(:disabled) {
+  border-color: var(--tag);
+}
+
+.spell-card-selected {
+  border-color: var(--tag);
+  box-shadow: 0 0 0 1px var(--tag);
+  transform: translateY(-6px);
+}
+
+.spell-card:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.spell-card-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.spell-card-head strong {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.spell-card kbd {
+  padding: 0 5px;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+  font: inherit;
+  font-size: 10px;
+  color: var(--text-dim);
+}
+
+.spell-card-name {
+  font-size: 11px;
+  color: var(--text-dim);
+}
+
+.spell-card-name em {
+  font-style: normal;
+  color: var(--tag);
+}
+
+.spell-card-effect {
+  margin-top: 2px;
+  font-size: 12px;
+}
+
+.spell-card-cost {
+  font-size: 11px;
+  color: var(--cyan);
+}
+
+.spell-card-modifier {
+  margin-top: 3px;
+  padding-top: 4px;
+  border-top: 1px dashed var(--border);
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--gold);
 }

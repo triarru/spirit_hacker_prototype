@@ -12,6 +12,8 @@ const COLOR = {
   moveRange: 0x22c55e,
   spellRange: 0xf97316,
   attackTarget: 0xef4444,
+  barrierFill: 0x16303f,
+  barrierOutline: 0x38bdf8,
   path: 0x7dd3fc,
   hover: 0xe2e8f0,
   selected: 0xfacc15,
@@ -61,6 +63,13 @@ export class HexGridRenderer {
       g.poly(hexCorners(hexToPixel(cell.hex))).stroke({ width: 1.5, color: COLOR.floorOutline });
     }
     for (const cell of cells) this.drawSpecialTerrain(g, cell);
+    // Temporary walls sit on top of floor, so they are drawn last.
+    for (const cell of cells) {
+      if (cell.barrierTurns === 0) continue;
+      g.poly(hexCorners(hexToPixel(cell.hex), HEX_SIZE - INSET))
+        .fill({ color: COLOR.barrierFill })
+        .stroke({ width: 2, color: COLOR.barrierOutline });
+    }
   }
 
   drawRanges({ move, spell, attack }: RangeHighlights): void {

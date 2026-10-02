@@ -3,6 +3,7 @@ import { DebugPanel } from './ui/DebugPanel';
 import { EnemyInfo } from './ui/EnemyInfo';
 import { GameOverScreen } from './ui/GameOverScreen';
 import { HUD } from './ui/HUD';
+import { SpellBar } from './ui/SpellBar';
 import { TurnIndicator } from './ui/TurnIndicator';
 
 export function App() {
@@ -18,6 +19,7 @@ export function App() {
         <HUD />
         <EnemyInfo />
         <DebugPanel />
+        <SpellBar />
         <GameOverScreen />
       </div>
     </div>

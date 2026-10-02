@@ -4,6 +4,7 @@ export function HUD() {
   const player = useCombatStore((state) => state.player);
   const canEndTurn = useCombatStore((state) => state.phase === 'PLAYER_TURN' && !state.busy);
   const endTurn = useCombatStore((state) => state.endTurn);
+  const passives = useCombatStore((state) => state.passives);
 
   // AP above maxAp came from the bank, so the row grows to show those dots too.
   // AP still sitting in the bank shows as extra gold dots: earned, usable next turn.
@@ -45,6 +46,15 @@ export function HUD() {
         </span>
       </div>
       <div className="hud-row">
+        <span className="hud-label">Qi</span>
+        <div className="bar" role="img" aria-label={`Qi ${player.qi} of ${player.maxQi}`}>
+          <div className="bar-fill bar-qi" style={{ width: `${(player.qi / player.maxQi) * 100}%` }} />
+        </div>
+        <span className="hud-value">
+          {player.qi}/{player.maxQi}
+        </span>
+      </div>
+      <div className="hud-row">
         <span className="hud-label">AP</span>
         <div className="ap-dots" role="img" aria-label={apLabel}>
           {dots}
@@ -63,6 +73,15 @@ export function HUD() {
       >
         End turn
       </button>
+      {passives.length > 0 && (
+        <ul className="passives">
+          {passives.map((program) => (
+            <li key={program.id}>
+              <strong>{program.name}</strong> {program.passive.description}
+            </li>
+          ))}
+        </ul>
+      )}
     </section>
   );
 }

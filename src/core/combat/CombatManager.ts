@@ -4,7 +4,9 @@ import { inAttackRange, type Enemy } from '../entities/Enemy';
 import { PLAYER_DATA, type Player } from '../entities/Player';
 import type { HexCoord } from '../hex/HexCoord';
 import type { HexGrid } from '../hex/HexGrid';
-import type { SpellTag } from '../programs/Program';
+import type { ActiveSpec, Program, SpellTag } from '../programs/Program';
+import { createEmptyDeck, type SpellDeck } from '../programs/SpellDeck';
+import { affectedHexes, validTargets } from '../programs/SpellTargeting';
 import {
   BREAK_RULES,
   breachDamageMultiplier,
@@ -51,7 +53,11 @@ export type CombatEvent =
     }
   | { /** An enemy's firewall hit zero. */ type: 'breached'; entityId: string; at: HexCoord }
   | { /** A breached enemy got its firewall back. */ type: 'recovered'; entityId: string; at: HexCoord }
-  | { type: 'turnSkipped'; entityId: string; at: HexCoord; reason: 'breached' }
+  | { type: 'turnSkipped'; entityId: string; at: HexCoord; reason: 'breached' | 'stunned' }
+  | { /** The player cast a program at `at`. */ type: 'spellCast'; programId: string; programName: string; at: HexCoord }
+  | { type: 'stunned'; entityId: string; at: HexCoord; turns: number }
+  | { type: 'healed'; entityId: string; at: HexCoord; amount: number }
+  | { /** Temporary walls went up or came down. */ type: 'terrainChanged' }
   | {
       /** The player turned a breached enemy on one of its allies. */
       type: 'virusInjected';
@@ -61,6 +67,52 @@ export type CombatEvent =
     }
   | { type: 'died'; entityId: string; at: HexCoord }
   | { type: 'phaseChanged'; phase: CombatPhase };
+
+/** A card in the player's hand this turn. */
+export interface HandCard {
+  /** Index of the Active slot the card comes from. */
+  slot: number;
+  program: Program;
+  modifier: Program | null;
+  /** The Active as it casts, with the modifier applied. */
+  spec: ActiveSpec;
+  /** The player has the AP, RAM and Qi to cast it right now. */
+  affordable: boolean;
+}
+
+/** What a spell would do to one enemy. */
+export interface SpellHitPreview {
+  enemyId: string;
+  at: HexCoord;
+  damage: number;
+  firewallDamage: number;
+  breaches: boolean;
+  kills: boolean;
+  stunTurns: number;
+}
+
+/** What casting a spell at a given hex would do, for showing before the player commits. */
+export interface SpellPreview {
+  /** Hexes the spell touches. */
+  affected: HexCoord[];
+  hits: SpellHitPreview[];
+  /** Hexes where a temporary wall would go up. */
+  walls: HexCoord[];
+  /** HP the caster would actually recover. */
+  heal: number;
+}
+
+/** A cast worked out but not yet applied. Shared by the preview and the cast itself. */
+interface SpellPlan {
+  program: Program;
+  spec: ActiveSpec;
+  affected: HexCoord[];
+  enemies: Enemy[];
+  walls: HexCoord[];
+  wallTurns: number;
+  heal: number;
+  stunTurns: number;
+}
 
 /**
  * The combat state machine: PLAYER_TURN → ENEMY_TURN → (check end) → loop,
@@ -78,17 +130,22 @@ export class CombatManager {
   enemies: Enemy[];
   phase: CombatPhase = 'PLAYER_TURN';
   turn = 1;
+  readonly deck: SpellDeck;
+  /** Bumped whenever temporary walls change, so renderers know to redraw the terrain. */
+  terrainVersion = 0;
 
   private readonly rng: Rng;
   /** Enemies sitting out the current enemy phase. */
   private readonly skipping = new Set<string>();
 
-  constructor(room: RoomState, rng: Rng = Math.random) {
+  constructor(room: RoomState, rng: Rng = Math.random, deck: SpellDeck = createEmptyDeck()) {
     this.grid = room.grid;
     this.player = room.player;
     this.enemies = room.enemies;
     this.rng = rng;
+    this.deck = deck;
     startPlayerTurn(this.player);
+    this.deck.drawHand(this.rng);
   }
 
   // --- Player turn ---------------------------------------------------------
@@ -122,10 +179,78 @@ export class CombatManager {
     if (!enemy) return [];
 
     this.player.ap -= PLAYER_DATA.basicAttack.apCost;
-    return [
-      ...this.hitEnemy(this.player.id, enemy, PLAYER_DATA.basicAttack.damage, null),
-      ...this.checkEnd(),
+    const damage = PLAYER_DATA.basicAttack.damage + this.deck.bonuses.basicAttackDamage;
+    return [...this.hitEnemy(this.player.id, enemy, damage, null), ...this.checkEnd()];
+  }
+
+  // --- Programs ------------------------------------------------------------
+
+  /** The cards drawn this turn that have not been cast yet. */
+  getHand(): HandCard[] {
+    return this.deck.getHand().flatMap((slot) => {
+      const entry = this.deck.slots[slot];
+      const spec = this.deck.specOf(slot);
+      if (!entry || !spec) return [];
+      return [
+        {
+          slot,
+          program: entry.program,
+          modifier: entry.modifier,
+          spec,
+          affordable: this.canAfford(spec),
+        },
+      ];
+    });
+  }
+
+  /** Hexes the card in `slot` can be aimed at right now; empty if it cannot be cast. */
+  getSpellTargets(slot: number): HexCoord[] {
+    const spec = this.castableSpec(slot);
+    return spec ? validTargets(this.grid, this.player.position, spec) : [];
+  }
+
+  /** What casting the card in `slot` at `target` would do, or null if that cast is not legal. */
+  previewSpell(slot: number, target: HexCoord): SpellPreview | null {
+    const plan = this.planSpell(slot, target);
+    if (!plan) return null;
+    return {
+      affected: plan.affected,
+      walls: plan.walls,
+      heal: Math.min(plan.heal, this.player.maxHp - this.player.hp),
+      hits: plan.enemies.map((enemy) => this.previewHit(enemy, plan)),
+    };
+  }
+
+  castSpell(slot: number, target: HexCoord): CombatEvent[] {
+    const plan = this.planSpell(slot, target);
+    if (!plan) return [];
+    const { program, spec } = plan;
+
+    this.player.ap -= spec.apCost;
+    this.player.ram -= spec.ramCost;
+    this.player.qi -= spec.qiCost;
+    this.deck.discard(slot);
+
+    const events: CombatEvent[] = [
+      { type: 'spellCast', programId: program.id, programName: program.name, at: target },
     ];
+
+    for (const enemy of plan.enemies) {
+      events.push(...this.hitEnemy(this.player.id, enemy, spec.damage, program.tag, spec.firewallBonus));
+      const survived = this.enemies.includes(enemy);
+      if (survived && plan.stunTurns > 0) {
+        enemy.stunTurns = Math.max(enemy.stunTurns, plan.stunTurns);
+        events.push({ type: 'stunned', entityId: enemy.id, at: enemy.position, turns: plan.stunTurns });
+      }
+    }
+
+    if (plan.walls.length > 0) {
+      for (const hex of plan.walls) this.grid.placeBarrier(hex, plan.wallTurns);
+      events.push(...this.terrainChanged());
+    }
+
+    events.push(...this.healPlayer(plan.heal));
+    return [...events, ...this.checkEnd()];
   }
 
   /** Breached enemies the player can afford to inject right now, and that have an ally to turn on. */
@@ -173,15 +298,26 @@ export class CombatManager {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN') return [];
 
-    switch (tickBreach(enemy)) {
-      case 'skip_turn':
-        this.skipping.add(enemy.id);
-        return [{ type: 'turnSkipped', entityId: enemy.id, at: enemy.position, reason: 'breached' }];
-      case 'recovered':
-        return [{ type: 'recovered', entityId: enemy.id, at: enemy.position }];
-      case 'not_breached':
-        return [];
+    const events: CombatEvent[] = [];
+    const breach = tickBreach(enemy);
+    if (breach === 'recovered') {
+      events.push({ type: 'recovered', entityId: enemy.id, at: enemy.position });
     }
+
+    // A turn lost to a breach also counts against a stun: one skipped turn pays for both.
+    const stunned = enemy.stunTurns > 0;
+    if (stunned) enemy.stunTurns -= 1;
+
+    if (breach === 'skip_turn' || stunned) {
+      this.skipping.add(enemy.id);
+      events.push({
+        type: 'turnSkipped',
+        entityId: enemy.id,
+        at: enemy.position,
+        reason: breach === 'skip_turn' ? 'breached' : 'stunned',
+      });
+    }
+    return events;
   }
 
   /** What the enemy intends to do, in order. Does not change any state. */
@@ -228,9 +364,19 @@ export class CombatManager {
   /** Hands the turn back to the player, unless combat already ended. */
   endEnemyPhase(): CombatEvent[] {
     if (this.phase !== 'ENEMY_TURN') return [];
+    const events: CombatEvent[] = [];
+    if (this.grid.tickBarriers()) events.push(...this.terrainChanged());
+
     this.turn += 1;
     startPlayerTurn(this.player);
-    return this.enterPhase('PLAYER_TURN');
+
+    const { ramPerTurn, qiPerTurn, hpPerTurn } = this.deck.bonuses;
+    this.player.ram = Math.min(this.player.maxRam, this.player.ram + ramPerTurn);
+    this.player.qi = Math.min(this.player.maxQi, this.player.qi + qiPerTurn);
+    events.push(...this.healPlayer(hpPerTurn));
+
+    this.deck.drawHand(this.rng);
+    return [...events, ...this.enterPhase('PLAYER_TURN')];
   }
 
   /** An enemy's attack on the player, softened or cancelled by how the player defended. */
@@ -276,7 +422,9 @@ export class CombatManager {
 
   private hitPlayer(attackerId: string, damage: number): CombatEvent[] {
     const at = this.player.position;
-    const outcome = resolveAttack(this.player, damage, this.player.dodgeChance, this.rng);
+    // A hit that connects always does at least 1, however much is shaved off.
+    const reduced = Math.max(1, damage - this.deck.bonuses.damageReduction);
+    const outcome = resolveAttack(this.player, reduced, this.player.dodgeChance, this.rng);
 
     const events: CombatEvent[] = [
       {
@@ -295,38 +443,135 @@ export class CombatManager {
 
   /**
    * One hit on an enemy: damage (amplified if it is breached), then firewall.
-   * `tag` is the hit's spell tag, or null for an untagged hit like the basic attack.
+   * `tag` is the hit's spell tag, or null for an untagged hit like the basic
+   * attack. A hit with no damage (a pure stun, say) still strips firewall.
    */
   private hitEnemy(
     attackerId: string,
     enemy: Enemy,
     baseDamage: number,
     tag: SpellTag | null,
+    firewallBonus = 0,
   ): CombatEvent[] {
     const at = enemy.position;
-    // Decided before the hit lands: the hit that causes a breach is not itself amplified.
-    const multiplier = breachDamageMultiplier(enemy);
-    const outcome = resolveAttack(enemy, Math.round(baseDamage * multiplier), 0, this.rng);
+    const events: CombatEvent[] = [];
+    // Read before the hit lands: the hit that causes a breach is not itself amplified.
+    const firewallDamage = this.firewallDamageOf(enemy, tag, firewallBonus);
+    const damage = this.damageTo(enemy, baseDamage);
 
-    const events: CombatEvent[] = [
-      {
+    if (damage > 0) {
+      const outcome = resolveAttack(enemy, damage, 0, this.rng);
+      events.push({
         type: 'attacked',
         attackerId,
         targetId: enemy.id,
         at,
         damage: outcome.damage,
         dodged: outcome.dodged,
-        amplified: multiplier > 1,
-      },
-    ];
+        amplified: enemy.breached,
+      });
+      if (outcome.killed) {
+        events.push({ type: 'died', entityId: enemy.id, at });
+        this.removeEnemy(enemy);
+        return events;
+      }
+    }
 
-    if (outcome.killed) {
-      events.push({ type: 'died', entityId: enemy.id, at });
-      this.removeEnemy(enemy);
-    } else if (damageFirewall(enemy, firewallDamageForHit(enemy, tag))) {
+    if (damageFirewall(enemy, firewallDamage)) {
       events.push({ type: 'breached', entityId: enemy.id, at });
     }
     return events;
+  }
+
+  /** Damage a hit of `baseDamage` does to this enemy right now. */
+  private damageTo(enemy: Enemy, baseDamage: number): number {
+    return Math.round(baseDamage * breachDamageMultiplier(enemy));
+  }
+
+  /** Firewall bars a hit strips from this enemy, with every bonus counted in. */
+  private firewallDamageOf(enemy: Enemy, tag: SpellTag | null, bonus: number): number {
+    const weaknessBonus = tag === enemy.weakness ? this.deck.bonuses.weaknessFirewallBonus : 0;
+    return firewallDamageForHit(enemy, tag) + bonus + weaknessBonus;
+  }
+
+  private previewHit(enemy: Enemy, plan: SpellPlan): SpellHitPreview {
+    const damage = this.damageTo(enemy, plan.spec.damage);
+    const kills = damage >= enemy.hp;
+    const stripped = this.firewallDamageOf(enemy, plan.program.tag, plan.spec.firewallBonus);
+    // A dead or already-breached enemy has no firewall left to lose.
+    const firewallDamage = kills || enemy.breached ? 0 : Math.min(stripped, enemy.firewallCurrent);
+    return {
+      enemyId: enemy.id,
+      at: enemy.position,
+      damage,
+      firewallDamage,
+      breaches: !kills && !enemy.breached && stripped >= enemy.firewallCurrent,
+      kills,
+      stunTurns: kills ? 0 : plan.stunTurns,
+    };
+  }
+
+  /** Works out a cast without applying it; null if the cast is not legal right now. */
+  private planSpell(slot: number, target: HexCoord): SpellPlan | null {
+    const entry = this.deck.slots[slot];
+    const spec = this.castableSpec(slot);
+    if (!entry || !spec) return null;
+
+    const origin = this.player.position;
+    if (!validTargets(this.grid, origin, spec).some((hex) => hex.equals(target))) return null;
+
+    const affected = affectedHexes(this.grid, origin, spec, target);
+    const hitsEnemies = spec.targeting === 'ENEMY' || spec.targeting === 'LINE';
+    const wall = spec.effects.find((effect) => effect.type === 'createWall');
+
+    let heal = 0;
+    let stunTurns = 0;
+    for (const effect of spec.effects) {
+      if (effect.type === 'heal') heal += effect.amount;
+      if (effect.type === 'stun') stunTurns = Math.max(stunTurns, effect.turns);
+    }
+
+    return {
+      program: entry.program,
+      spec,
+      affected,
+      enemies: hitsEnemies
+        ? this.enemies.filter((enemy) => affected.some((hex) => hex.equals(enemy.position)))
+        : [],
+      walls: wall ? affected : [],
+      wallTurns: wall?.turns ?? 0,
+      heal,
+      stunTurns,
+    };
+  }
+
+  /** The spec of the card in `slot`, if it is in hand and the player can pay for it. */
+  private castableSpec(slot: number): ActiveSpec | null {
+    if (!this.deck.inHand(slot)) return null;
+    const spec = this.deck.specOf(slot);
+    return spec && this.canAfford(spec) ? spec : null;
+  }
+
+  private canAfford(spec: ActiveSpec): boolean {
+    return (
+      this.phase === 'PLAYER_TURN' &&
+      this.player.ap >= spec.apCost &&
+      this.player.ram >= spec.ramCost &&
+      this.player.qi >= spec.qiCost
+    );
+  }
+
+  /** Restores HP up to the maximum. No event if there was nothing to restore. */
+  private healPlayer(amount: number): CombatEvent[] {
+    const healed = Math.min(amount, this.player.maxHp - this.player.hp);
+    if (healed <= 0) return [];
+    this.player.hp += healed;
+    return [{ type: 'healed', entityId: this.player.id, at: this.player.position, amount: healed }];
+  }
+
+  private terrainChanged(): CombatEvent[] {
+    this.terrainVersion += 1;
+    return [{ type: 'terrainChanged' }];
   }
 
   /** The other enemy closest to `enemy`, or null if it is the last one standing. */
