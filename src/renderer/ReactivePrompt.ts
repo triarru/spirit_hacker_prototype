@@ -8,7 +8,8 @@ import {
   type ParryPrompt,
   type ReactiveDefense,
 } from '../core/combat/ReactiveDefense';
-import { hexToPixel, type HexCoord, type Point } from '../core/hex/HexCoord';
+import type { HexCoord, Point } from '../core/hex/HexCoord';
+import { bodyPoint } from './projection';
 
 const COLOR = {
   perfect: 0x4ade80,
@@ -76,7 +77,7 @@ export class ReactivePromptRenderer {
 
     this.container.visible = true;
     this.shapes.clear();
-    const center = hexToPixel(playerAt);
+    const center = bodyPoint(playerAt);
     const { prompt } = session;
 
     if (prompt.kind === 'parry') {
@@ -122,7 +123,7 @@ export class ReactivePromptRenderer {
     const g = this.shapes;
 
     // The incoming shot, kept faint: it is the timer, not the instruction.
-    const from = hexToPixel(prompt.from);
+    const from = bodyPoint(prompt.from);
     const length = Math.hypot(center.x - from.x, center.y - from.y);
     if (length > 0) {
       const unitX = (center.x - from.x) / length;

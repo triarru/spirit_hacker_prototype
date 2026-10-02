@@ -2,7 +2,8 @@ import { Container, Graphics, Text } from 'pixi.js';
 import type { CombatEvent } from '../core/combat/CombatManager';
 import type { HackKind } from '../core/combat/EnvironmentHack';
 import timing from '../core/data/timing.json';
-import { hexToPixel, type HexCoord } from '../core/hex/HexCoord';
+import type { HexCoord } from '../core/hex/HexCoord';
+import { bodyPoint, groundPoint, STANDING } from './projection';
 
 const COLOR = {
   damageToEnemy: 0xfde68a,
@@ -176,8 +177,10 @@ export class EffectRenderer {
 
   /** A turret's shot: a line from the turret to its target that fades out. */
   private spawnBeam(from: HexCoord, to: HexCoord): void {
-    const start = hexToPixel(from);
-    const end = hexToPixel(to);
+    // From the top of the terminal the turret sits on, to the middle of what it shot.
+    const base = groundPoint(from);
+    const start = { x: base.x, y: base.y - STANDING.terminal.height };
+    const end = bodyPoint(to);
     const line = new Graphics()
       .moveTo(start.x, start.y)
       .lineTo(end.x, end.y)
@@ -193,7 +196,7 @@ export class EffectRenderer {
     fontSize: number,
     stackLevel: number,
   ): void {
-    const center = hexToPixel(hex);
+    const center = bodyPoint(hex);
     const text = new Text({
       text: label,
       style: {

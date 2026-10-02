@@ -3,8 +3,8 @@ import timing from '../core/data/timing.json';
 import type { Enemy } from '../core/entities/Enemy';
 import type { Entity } from '../core/entities/Entity';
 import type { Player } from '../core/entities/Player';
-import { hexToPixel } from '../core/hex/HexCoord';
 import { TAG_COLOR } from '../theme';
+import { BODY_LIFT, groundPoint, TILT } from './projection';
 
 const PLAYER_COLOR = 0x3b82f6;
 const ENEMY_COLOR = 0xef4444;
@@ -18,10 +18,18 @@ const RADIUS = 24;
 const HP_BAR = { width: 40, height: 5, top: -RADIUS - 15, back: 0x1e293b, fill: 0xef4444 } as const;
 const PIP = { width: 7, height: 4, gap: 2, top: -RADIUS - 8, intact: 0x22d3ee, broken: 0x1e293b } as const;
 const WEAKNESS_DOT_RADIUS = 2.5;
+/** Status rings lie flat on the floor around a unit's feet, so the tilted camera sees them as ellipses. */
 const BREACH_RING = { radius: RADIUS + 7, color: 0xffffff } as const;
 const STUN_RING = { radius: RADIUS + 4, color: 0xfacc15 } as const;
 /** An enemy about to strike swells and is ringed, in step with the pulse. */
 const WIND_UP = { radius: RADIUS + 10, color: 0xf97316, swell: 0.18 } as const;
+/** The shadow a unit casts on the floor under it. */
+const SHADOW = { radius: RADIUS * 0.85, color: 0x000000, alpha: 0.45 } as const;
+
+/** A ring of `radius` lying on the floor around (0, 0). */
+function floorRing(radius: number, width: number, color: number): Graphics {
+  return new Graphics().ellipse(0, 0, radius, radius * TILT).stroke({ width, color });
+}
 
 type ShapeDrawer = (g: Graphics) => void;
 
@@ -82,11 +90,21 @@ interface EntityView {
   tween: Tween | null;
 }
 
+/**
+ * Draws the units upright on the board: each one a body floating a little above
+ * a shadow at its feet. They live in a layer shared with the walls and sorted
+ * by depth, so whatever stands nearer the camera hides what is behind it.
+ */
 export class EntityRenderer {
-  readonly container = new Container();
+  private readonly layer: Container;
   private readonly views = new Map<string, EntityView>();
   /** The enemy winding up for an attack, and how long it has been at it. */
   private windingUp: { entityId: string; elapsed: number } | null = null;
+
+  /** `layer` is depth-sorted by `zIndex`; the walls live in it too. */
+  constructor(layer: Container) {
+    this.layer = layer;
+  }
 
   /** Reconciles the drawn shapes with the entities: adds new, moves existing, removes gone. */
   sync(player: Player, enemies: Enemy[]): void {
@@ -136,6 +154,8 @@ export class EntityRenderer {
           tween.fromX + (tween.toX - tween.fromX) * t,
           tween.fromY + (tween.toY - tween.fromY) * t,
         );
+        // Its depth changes as it walks: nearer the camera is lower on screen.
+        view.root.zIndex = view.root.y;
         if (t >= 1) view.tween = null;
       }
 
@@ -163,14 +183,15 @@ export class EntityRenderer {
   /** Creates the entity's view if needed and starts it moving toward the entity's hex. */
   private place(entity: Player | Enemy, alive: Set<string>): EntityView {
     alive.add(entity.id);
-    const target = hexToPixel(entity.position);
+    const target = groundPoint(entity.position);
     const hexKey = entity.position.key();
 
     let view = this.views.get(entity.id);
     if (!view) {
       view = this.createView(entity, hexKey);
       view.root.position.set(target.x, target.y);
-      this.container.addChild(view.root);
+      view.root.zIndex = target.y;
+      this.layer.addChild(view.root);
       this.views.set(entity.id, view);
     } else if (view.hexKey !== hexKey) {
       // Start from wherever the shape is right now, so a step that arrives
@@ -188,36 +209,40 @@ export class EntityRenderer {
   }
 
   private createView(entity: Entity, hexKey: string): EntityView {
+    // The root sits at the unit's feet. The body and what belongs to it are lifted above that.
     const root = new Container();
+    const shadow = new Graphics()
+      .ellipse(0, 0, SHADOW.radius, SHADOW.radius * TILT)
+      .fill({ color: SHADOW.color, alpha: SHADOW.alpha });
     const shape = new Graphics();
+    shape.position.y = -BODY_LIFT;
 
     if (entity.kind === 'player') {
       drawPlayer(shape);
-      root.addChild(shape);
+      root.addChild(shadow, shape);
       return { root, status: null, hexKey, tween: null };
     }
 
     (ENEMY_SHAPES[entity.typeId] ?? drawUnknownEnemy)(shape);
 
-    const breachRing = new Graphics();
-    breachRing.circle(0, 0, BREACH_RING.radius).stroke({ width: 2, color: BREACH_RING.color });
+    const breachRing = floorRing(BREACH_RING.radius, 2, BREACH_RING.color);
     breachRing.visible = false;
 
-    const stunRing = new Graphics();
-    stunRing.circle(0, 0, STUN_RING.radius).stroke({ width: 2, color: STUN_RING.color });
+    const stunRing = floorRing(STUN_RING.radius, 2, STUN_RING.color);
     stunRing.visible = false;
 
-    const windUpRing = new Graphics();
-    windUpRing.circle(0, 0, WIND_UP.radius).stroke({ width: 3, color: WIND_UP.color });
+    const windUpRing = floorRing(WIND_UP.radius, 3, WIND_UP.color);
     windUpRing.visible = false;
 
     const flash = new Graphics();
     flash.circle(0, 0, RADIUS + 2).fill({ color: 0xffffff });
+    flash.position.y = -BODY_LIFT;
     flash.alpha = 0;
 
     // Siblings of the shape, not children, so a translucent enemy keeps solid bars.
     const strip = new Graphics();
-    root.addChild(breachRing, stunRing, windUpRing, shape, flash, strip);
+    strip.position.y = -BODY_LIFT;
+    root.addChild(shadow, breachRing, stunRing, windUpRing, shape, flash, strip);
     return {
       root,
       status: { strip, shape, breachRing, stunRing, windUpRing, flash, shown: '', flashElapsed: null },

@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
-import { Application, Container, type FederatedPointerEvent, type Ticker } from 'pixi.js';
+import { Application, ColorMatrixFilter, Container, type FederatedPointerEvent, type Ticker } from 'pixi.js';
 import { pathCost } from '../core/combat/Movement';
-import { hexToPixel, pixelToHex, type HexCoord } from '../core/hex/HexCoord';
+import type { HexCoord } from '../core/hex/HexCoord';
 import { useCombatStore } from '../stores/useCombatStore';
 import { useUIStore } from '../stores/useUIStore';
 import { Camera } from './Camera';
@@ -9,17 +9,20 @@ import type { Rect } from './cameraMath';
 import { EffectRenderer } from './EffectRenderer';
 import { EntityRenderer } from './EntityRenderer';
 import { HexGridRenderer } from './HexGridRenderer';
+import { pickHex } from './picking';
 import { PreviewRenderer } from './PreviewRenderer';
+import { groundPoint } from './projection';
 import { ReactivePromptRenderer } from './ReactivePrompt';
 
-const BACKGROUND = 0x0b0f17;
-/** Free space kept between the grid and the canvas edge, in px. */
+/** Free space kept between the board and the sides of the canvas, in px. */
 const PADDING = 32;
+/** Height kept clear at the top of the canvas for the vitals and the turn indicator, in px. */
+const TOP_RESERVE = 104;
 /**
- * Height kept clear at the bottom of the canvas for the spell bar, in px: its hint line,
- * a row of cards at their tallest (one with a modifier), and the margins around them.
+ * Height kept clear at the bottom of the canvas, in px: the row of action modes, and above it
+ * the spell bar with its hint line and a row of cards at their tallest (one with a modifier).
  */
-const SPELL_BAR_RESERVE = 186;
+const SPELL_BAR_RESERVE = 232;
 /** How strongly one notch of the mouse wheel zooms. */
 const WHEEL_ZOOM_RATE = 0.0015;
 
@@ -29,33 +32,49 @@ const WHEEL_ZOOM_RATE = 0.0015;
  */
 function mountGame(app: Application): () => void {
   const world = new Container();
-  const gridRenderer = new HexGridRenderer();
-  const entityRenderer = new EntityRenderer();
+  // Everything that stands up, walls and units alike, in one layer sorted by depth:
+  // what is nearer the camera is drawn later and hides what is behind it.
+  const standing = new Container();
+  standing.sortableChildren = true;
+  const gridRenderer = new HexGridRenderer(standing);
+  const entityRenderer = new EntityRenderer(standing);
   const effectRenderer = new EffectRenderer();
   const promptRenderer = new ReactivePromptRenderer();
   const previewRenderer = new PreviewRenderer();
   world.addChild(
-    gridRenderer.container,
-    entityRenderer.container,
+    gridRenderer.ground,
+    previewRenderer.ground,
+    standing,
+    gridRenderer.overlay,
     previewRenderer.container,
     promptRenderer.container,
     effectRenderer.container,
   );
   app.stage.addChild(world);
 
+  // Veil mode shows the same board through a warm, aged tint, to match its HUD.
+  const veilTint = new ColorMatrixFilter();
+  veilTint.sepia(false);
+  // Only part of the way: enemies still have to read as red, and the player as blue.
+  veilTint.alpha = 0.55;
+  const applyMode = (): void => {
+    world.filters = useUIStore.getState().mode === 'veil' ? [veilTint] : [];
+  };
+  applyMode();
+
   const camera = new Camera(world);
   let gridBounds = gridRenderer.getBounds(useCombatStore.getState().grid);
 
-  /** The part of the canvas the grid may use: inside the padding, above the spell bar. */
+  /** The part of the canvas the board may use: inside the padding, between the top bar and the spell bar. */
   const viewRect = (): Rect => ({
     x: PADDING,
-    y: PADDING,
+    y: TOP_RESERVE,
     width: app.screen.width - PADDING * 2,
-    height: app.screen.height - PADDING - SPELL_BAR_RESERVE,
+    height: app.screen.height - TOP_RESERVE - SPELL_BAR_RESERVE,
   });
 
   const updateCamera = (deltaSeconds: number): void => {
-    const focus = hexToPixel(useCombatStore.getState().player.position);
+    const focus = groundPoint(useCombatStore.getState().player.position);
     camera.update(viewRect(), gridBounds, focus, deltaSeconds);
   };
 
@@ -132,6 +151,7 @@ function mountGame(app: Application): () => void {
     }
   });
   const unsubscribeUI = useUIStore.subscribe((state, previous) => {
+    if (state.mode !== previous.mode) applyMode();
     if (
       state.spellTargets !== previous.spellTargets ||
       state.targetingSlot !== previous.targetingSlot ||
@@ -149,11 +169,11 @@ function mountGame(app: Application): () => void {
     }
   });
 
-  /** The grid hex under the pointer, or null when the pointer is outside the grid. */
+  /** The hex the pointer is on, or null when it is off the board. */
   const hexUnderPointer = (event: FederatedPointerEvent): HexCoord | null => {
-    // getLocalPosition undoes the world's pan/zoom, so pixelToHex sees unscaled grid pixels.
-    const hex = pixelToHex(event.getLocalPosition(world));
-    return useCombatStore.getState().grid.has(hex) ? hex : null;
+    const { grid, player, enemies } = useCombatStore.getState();
+    // getLocalPosition undoes the world's pan/zoom, so picking sees unscaled board pixels.
+    return pickHex(event.getLocalPosition(world), grid, [player, ...enemies].map((unit) => unit.position));
   };
 
   app.stage.eventMode = 'static';
@@ -214,7 +234,8 @@ export function GameCanvas() {
     void app
       .init({
         resizeTo: host,
-        background: BACKGROUND,
+        // The backdrop is the page's own, behind the canvas, so the theme can change it.
+        backgroundAlpha: 0,
         antialias: true,
         autoDensity: true,
         resolution: window.devicePixelRatio || 1,

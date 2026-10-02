@@ -1,6 +1,7 @@
 import { Container, Graphics, Text } from 'pixi.js';
 import type { SpellHitPreview, SpellPreview } from '../core/combat/CombatManager';
-import { HEX_SIZE, hexCorners, hexToPixel, type HexCoord } from '../core/hex/HexCoord';
+import { HEX_SIZE, type HexCoord } from '../core/hex/HexCoord';
+import { bodyPoint, groundCorners } from './projection';
 
 const COLOR = {
   area: 0xf97316,
@@ -12,7 +13,7 @@ const COLOR = {
 } as const;
 
 const INSET = 4;
-/** Where a hit's label sits relative to the hex center, in px: just above the enemy's status strip. */
+/** Where a hit's label sits relative to the middle of the unit's body, in px: just above its status strip. */
 const LABEL_OFFSET_Y = -52;
 const HEAL_OFFSET_Y = -40;
 
@@ -31,25 +32,23 @@ function hitLabel(hit: SpellHitPreview): string {
 
 /** Shows what the spell being aimed would do if cast at the hovered hex. */
 export class PreviewRenderer {
+  /** The hexes the spell would touch, marked on the floor. Goes under the units. */
+  readonly ground = new Graphics();
+  /** What it would do to each of them, in words. Goes over the units. */
   readonly container = new Container();
-  private readonly shapes = new Graphics();
   private labels: Text[] = [];
-
-  constructor() {
-    this.container.addChild(this.shapes);
-  }
 
   /** `preview` is null when no spell is being aimed, or the hovered hex is not a valid target. */
   draw(preview: SpellPreview | null, playerAt: HexCoord): void {
-    this.shapes.clear();
+    this.ground.clear();
     for (const label of this.labels) label.destroy();
     this.labels = [];
     if (!preview) return;
 
     const isWall = preview.walls.length > 0;
     for (const hex of preview.affected) {
-      this.shapes
-        .poly(hexCorners(hexToPixel(hex), HEX_SIZE - INSET))
+      this.ground
+        .poly(groundCorners(hex, HEX_SIZE - INSET))
         .fill({ color: isWall ? COLOR.wall : COLOR.area, alpha: 0.32 })
         .stroke({ width: 2.5, color: isWall ? COLOR.wall : COLOR.area });
     }
@@ -62,7 +61,7 @@ export class PreviewRenderer {
   }
 
   private addLabel(hex: HexCoord, offsetY: number, content: string, color: number): void {
-    const center = hexToPixel(hex);
+    const center = bodyPoint(hex);
     const label = new Text({
       text: content,
       style: {

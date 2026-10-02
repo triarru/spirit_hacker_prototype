@@ -12,6 +12,9 @@ import {
   type CombatState,
 } from './useCombatStore';
 
+/** Which face of the world the HUD wears. Cosmetic: the rules are the same in both. */
+export type UiMode = 'grid' | 'veil';
+
 /** The choice of hacks for a hex that can take more than one, shown where the player clicked. */
 export interface HackMenu {
   hex: HexCoord;
@@ -21,6 +24,7 @@ export interface HackMenu {
 }
 
 export interface UIState {
+  mode: UiMode;
   hoveredHex: HexCoord | null;
   selectedEntityId: string | null;
   /** Path the player would walk to `hoveredHex`, both ends included. Empty when out of reach. */
@@ -57,6 +61,8 @@ export interface UIState {
   chooseHack: (kind: HackKind) => void;
   /** Leaves targeting or hack mode, whichever is on. */
   cancelAction: () => void;
+  /** Switches the HUD between its two faces. */
+  toggleMode: () => void;
 }
 
 type ModeState = Pick<
@@ -75,6 +81,7 @@ const NORMAL_MODE: ModeState = {
 };
 
 export const useUIStore = create<UIState>((set, get) => ({
+  mode: 'grid',
   hoveredHex: null,
   selectedEntityId: null,
   path: [],
@@ -197,6 +204,8 @@ export const useUIStore = create<UIState>((set, get) => ({
     const { targetingSlot, hackMode } = get();
     if (targetingSlot !== null || hackMode) set(NORMAL_MODE);
   },
+
+  toggleMode: () => set({ mode: get().mode === 'grid' ? 'veil' : 'grid' }),
 }));
 
 // Whatever the pointer is over stays put while the game changes around it, so
