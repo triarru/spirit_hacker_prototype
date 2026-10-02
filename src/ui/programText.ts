@@ -6,6 +6,7 @@ export function describeSpec(spec: ActiveSpec): string {
   if (spec.damage > 0) parts.push(`${spec.damage} dmg`);
   for (const effect of spec.effects) {
     if (effect.type === 'stun') parts.push(`stun ${effect.turns}t`);
+    if (effect.type === 'slow') parts.push(`slow ${effect.turns}t`);
     if (effect.type === 'heal') parts.push(`heal ${effect.amount}`);
     if (effect.type === 'createWall') parts.push(`${effect.count} walls, ${effect.turns}t`);
   }

@@ -25,6 +25,7 @@ function hitLabel(hit: SpellHitPreview): string {
   if (hit.kills) parts.push('KILL');
   else if (hit.breaches) parts.push('BREACH');
   if (hit.stunTurns > 0) parts.push('STUN');
+  if (hit.slowTurns > 0) parts.push('SLOW');
   return parts.join(' ');
 }
 

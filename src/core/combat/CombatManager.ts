@@ -143,6 +143,7 @@ export interface SpellHitPreview {
   breaches: boolean;
   kills: boolean;
   stunTurns: number;
+  slowTurns: number;
 }
 
 /** What casting a spell at a given hex would do, for showing before the player commits. */
@@ -166,6 +167,7 @@ interface SpellPlan {
   wallTurns: number;
   heal: number;
   stunTurns: number;
+  slowTurns: number;
 }
 
 /**
@@ -329,6 +331,10 @@ export class CombatManager {
         enemy.stunTurns = Math.max(enemy.stunTurns, plan.stunTurns);
         events.push({ type: 'stunned', entityId: enemy.id, at: enemy.position, turns: plan.stunTurns });
       }
+      if (survived && plan.slowTurns > 0) {
+        enemy.slowTurns = Math.max(enemy.slowTurns, plan.slowTurns);
+        events.push({ type: 'slowed', entityId: enemy.id, at: enemy.position, turns: plan.slowTurns });
+      }
     }
 
     if (plan.walls.length > 0) {
@@ -390,7 +396,8 @@ export class CombatManager {
     if (distance === 0 || distance > HACK_RULES.range) return [];
 
     return hackKindsAt(this.grid, hex).map((kind) => {
-      const ramCost = hackRamCost(kind);
+      const discount = kind === 'TRAP' ? this.deck.bonuses.trapRamDiscount : 0;
+      const ramCost = Math.max(0, hackRamCost(kind) - discount);
       return {
         kind,
         apCost: HACK_RULES.apCost,
@@ -848,6 +855,7 @@ export class CombatManager {
       breaches: !kills && !enemy.breached && stripped >= enemy.firewallCurrent,
       kills,
       stunTurns: kills ? 0 : plan.stunTurns,
+      slowTurns: kills ? 0 : plan.slowTurns,
     };
   }
 
@@ -866,9 +874,11 @@ export class CombatManager {
 
     let heal = 0;
     let stunTurns = 0;
+    let slowTurns = 0;
     for (const effect of spec.effects) {
       if (effect.type === 'heal') heal += effect.amount;
       if (effect.type === 'stun') stunTurns = Math.max(stunTurns, effect.turns);
+      if (effect.type === 'slow') slowTurns = Math.max(slowTurns, effect.turns);
     }
 
     return {
@@ -882,6 +892,8 @@ export class CombatManager {
       wallTurns: wall?.turns ?? 0,
       heal,
       stunTurns,
+      // Only a spell that hits enemies has anyone to slow.
+      slowTurns: hitsEnemies ? slowTurns : 0,
     };
   }
 

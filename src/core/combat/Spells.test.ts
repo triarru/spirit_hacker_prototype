@@ -151,10 +151,10 @@ describe('preview', () => {
 
     expect(preview.affected).toEqual([at(3, 5), at(3, 4), at(3, 3)]);
     expect(preview.hits).toEqual([
-      { enemyId: crawler.id, at: at(3, 5), damage: 12, firewallDamage: 1, breaches: false, kills: false, stunTurns: 0 },
+      { enemyId: crawler.id, at: at(3, 5), damage: 12, firewallDamage: 1, breaches: false, kills: false, stunTurns: 0, slowTurns: 0 },
       // CORRUPT is the guardian's weakness: two bars.
-      { enemyId: guardian.id, at: at(3, 4), damage: 12, firewallDamage: 2, breaches: false, kills: false, stunTurns: 0 },
-      { enemyId: ghost.id, at: at(3, 3), damage: 12, firewallDamage: 0, breaches: false, kills: true, stunTurns: 0 },
+      { enemyId: guardian.id, at: at(3, 4), damage: 12, firewallDamage: 2, breaches: false, kills: false, stunTurns: 0, slowTurns: 0 },
+      { enemyId: ghost.id, at: at(3, 3), damage: 12, firewallDamage: 0, breaches: false, kills: true, stunTurns: 0, slowTurns: 0 },
     ]);
     expect(crawler.hp).toBe(before.crawler - 12);
     expect(guardian.hp).toBe(before.guardian - 12);
@@ -341,6 +341,106 @@ describe('firewall_up', () => {
     const detour = findPath(combat.grid, crawler.position, at(1, 3));
     expect(detour.length).toBeGreaterThan(direct);
     for (const hex of detour) expect(combat.grid.isWalkable(hex)).toBe(true);
+  });
+});
+
+describe('throttle', () => {
+  it('is an ICE hit at range 3 that slows what it hits', () => {
+    const { combat, enemies } = setup({ player: at(3, 6), enemies: [['crawler', at(3, 3)]], deck: deckOf([['throttle']]) });
+    const [crawler] = enemies;
+    if (!crawler) throw new Error('crawler missing');
+    const { damage, ramCost, tag } = getProgram('throttle').active;
+
+    expect(combat.previewSpell(0, crawler.position)?.hits[0]).toMatchObject({ damage, slowTurns: 1 });
+    const events = combat.castSpell(0, crawler.position);
+
+    expect(tag).toBe('ICE');
+    expect(types(events)).toEqual(['spellCast', 'attacked', 'slowed']);
+    expect(crawler.hp).toBe(crawler.maxHp - damage);
+    expect(crawler.slowTurns).toBe(1);
+    expect(combat.player.ram).toBe(combat.player.maxRam - ramCost);
+  });
+
+  it('costs a crawler a hex of its next move, and only that one', () => {
+    /** How far the crawler gets in each of two enemy turns, with or without the cast. */
+    const advance = (cast: boolean) => {
+      // Straight down the left edge of the room, eight hexes apart.
+      const { combat, enemies } = setup({
+        player: at(0, 8),
+        enemies: [['crawler', at(0, 0)]],
+        deck: deckOf([['throttle']]),
+      });
+      const [crawler] = enemies;
+      if (!crawler) throw new Error('crawler missing');
+      // Out of the spell's range from here, so put the slow on directly, as the cast would.
+      if (cast) crawler.slowTurns = 1;
+      const rows: number[] = [];
+      for (let turn = 0; turn < 2; turn++) {
+        combat.player.ap = 0;
+        combat.endPlayerTurn();
+        runEnemyPhase(combat);
+        rows.push(crawler.position.toOffset().row);
+      }
+      return rows;
+    };
+
+    expect(advance(false)).toEqual([2, 4]);
+    expect(advance(true)).toEqual([1, 3]);
+  });
+
+  it('does not slow an enemy it kills', () => {
+    const { combat, enemies } = setup({
+      enemies: [['crawler', at(3, 3)], ['guardian', at(0, 0)]],
+      deck: deckOf([['throttle']]),
+    });
+    const [crawler] = enemies;
+    if (!crawler) throw new Error('crawler missing');
+    crawler.hp = 1;
+
+    expect(combat.previewSpell(0, crawler.position)?.hits[0]).toMatchObject({ kills: true, slowTurns: 0 });
+    expect(types(combat.castSpell(0, crawler.position))).not.toContain('slowed');
+  });
+
+  it('as a modifier, makes the host spell slow every enemy it hits', () => {
+    const { combat, enemies } = setup({
+      player: at(3, 6),
+      enemies: [['crawler', at(3, 5)], ['guardian', at(3, 4)]],
+      deck: deckOf([['ping_flood', 'throttle']]),
+    });
+
+    const events = combat.castSpell(0, at(3, 5));
+
+    expect(events.filter((event) => event.type === 'slowed')).toHaveLength(2);
+    expect(enemies.map((enemy) => enemy.slowTurns)).toEqual([1, 1]);
+  });
+
+  it('as a modifier on a spell that hits no one, does nothing', () => {
+    const { combat } = setup({ enemies: [['guardian', at(0, 0)]], deck: deckOf([['incense_burn', 'throttle']]) });
+    combat.player.hp = 50;
+
+    expect(types(combat.castSpell(0, combat.player.position))).toEqual(['spellCast', 'healed']);
+  });
+
+  it('as a passive, takes 5 RAM off a trap and nothing off the other hacks', () => {
+    const costs = (passives: string[]) => {
+      const { combat } = setup({ enemies: [['guardian', at(0, 0)]], deck: deckOf([['brute_force']], passives) });
+      const price = (kind: string) => combat.getHackOptions(at(3, 3)).find((option) => option.kind === kind)?.ramCost;
+      return { trap: price('TRAP'), wall: price('WALL') };
+    };
+    const base = costs([]);
+    const discounted = costs(['throttle']);
+
+    expect(discounted.trap).toBe((base.trap ?? 0) - 5);
+    expect(discounted.wall).toBe(base.wall);
+  });
+
+  it('as a passive, charges the discounted price when the trap is set', () => {
+    const { combat } = setup({ enemies: [['guardian', at(0, 0)]], deck: deckOf([['brute_force']], ['throttle']) });
+    const price = combat.getHackOptions(at(3, 3)).find((option) => option.kind === 'TRAP')?.ramCost ?? 0;
+
+    combat.hack(at(3, 3), 'TRAP');
+
+    expect(combat.player.ram).toBe(combat.player.maxRam - price);
   });
 });
 

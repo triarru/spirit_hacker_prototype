@@ -34,6 +34,11 @@ export const MODIFIERS: Record<string, ModifyFn> = {
     ...spec,
     effects: [...spec.effects, { type: 'heal', amount: value }],
   }),
+  // Each enemy the host spell hits is also slowed. Does nothing for a spell that hits no one.
+  addSlow: (spec, value) => ({
+    ...spec,
+    effects: [...spec.effects, { type: 'slow', turns: value }],
+  }),
   // The host spell is paid for in Qi, at the same price, instead of RAM.
   payWithQi: (spec) => ({ ...spec, ramCost: 0, qiCost: spec.qiCost + spec.ramCost }),
   // The host spell hits with the modifying program's tag instead of its own.
@@ -59,6 +64,8 @@ export interface PassiveBonuses {
   parryFirewallBonus: number;
   /** Qi that comes back each time an enemy dies. */
   qiPerKill: number;
+  /** RAM taken off the price of setting a trap. */
+  trapRamDiscount: number;
 }
 
 export function noBonuses(): PassiveBonuses {
@@ -71,6 +78,7 @@ export function noBonuses(): PassiveBonuses {
     weaknessFirewallBonus: 0,
     parryFirewallBonus: 0,
     qiPerKill: 0,
+    trapRamDiscount: 0,
   };
 }
 
@@ -101,6 +109,9 @@ export const PASSIVES: Record<string, PassiveFn> = {
   },
   qiPerKill: (bonuses, value) => {
     bonuses.qiPerKill += value;
+  },
+  trapRamDiscount: (bonuses, value) => {
+    bonuses.trapRamDiscount += value;
   },
 };
 
@@ -146,6 +157,8 @@ function parseEffect(raw: RawEffect, programId: string): Effect {
   switch (raw.type) {
     case 'stun':
       return { type: 'stun', turns: need(raw.turns, 'turns') };
+    case 'slow':
+      return { type: 'slow', turns: need(raw.turns, 'turns') };
     case 'heal':
       return { type: 'heal', amount: need(raw.amount, 'amount') };
     case 'createWall':

@@ -18,6 +18,8 @@ export type Targeting = (typeof TARGETINGS)[number];
 export type Effect =
   /** Each enemy hit loses this many turns. */
   | { type: 'stun'; turns: number }
+  /** Each enemy hit moves one hex less than usual for this many turns. */
+  | { type: 'slow'; turns: number }
   /** The caster recovers HP. */
   | { type: 'heal'; amount: number }
   /** Raises `count` temporary wall hexes that stand for `turns` turns. */
