@@ -130,7 +130,7 @@ export function describeEvents(events: readonly CombatEvent[], context: LogConte
         if (event.phase === 'PLAYER_TURN') lines.push({ tone: 'system', text: `— Turn ${turn} —` });
         else if (event.phase === 'ENEMY_TURN') lines.push({ tone: 'system', text: '— Enemy turn —' });
         else if (event.phase === 'VICTORY') lines.push({ tone: 'system', text: 'CLEARED' });
-        else lines.push({ tone: 'system', text: 'SYSTEM FORMATTED' });
+        else if (event.phase === 'DEFEAT') lines.push({ tone: 'system', text: 'SYSTEM FORMATTED' });
         break;
 
       // Shown on the grid itself; a line each would only be noise.

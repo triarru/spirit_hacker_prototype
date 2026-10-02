@@ -38,7 +38,7 @@ import {
 } from './ReactiveDefense';
 import { endPlayerTurn, regenerate, startPlayerTurn, turnOrder } from './TurnManager';
 
-export type CombatPhase = 'PLAYER_TURN' | 'ENEMY_TURN' | 'VICTORY' | 'DEFEAT';
+export type CombatPhase = 'LOADOUT' | 'PLAYER_TURN' | 'ENEMY_TURN' | 'VICTORY' | 'DEFEAT';
 
 /** What just happened, for anything that reacts to change rather than state: popups, logs. */
 export type CombatEvent =
@@ -143,8 +143,9 @@ interface SpellPlan {
 }
 
 /**
- * The combat state machine: PLAYER_TURN → ENEMY_TURN → (check end) → loop,
- * leaving the loop for VICTORY or DEFEAT.
+ * The combat state machine: (LOADOUT →) PLAYER_TURN → ENEMY_TURN → (check end)
+ * → loop, leaving the loop for VICTORY or DEFEAT. A fight can open on LOADOUT,
+ * where nothing can happen until the player's deck is chosen.
  *
  * Every method is synchronous and returns the events it caused; an action that
  * is not legal right now changes nothing and returns no events. The enemy turn
@@ -156,9 +157,9 @@ export class CombatManager {
   readonly grid: HexGrid;
   readonly player: Player;
   enemies: Enemy[];
-  phase: CombatPhase = 'PLAYER_TURN';
+  phase: CombatPhase;
   turn = 1;
-  readonly deck: SpellDeck;
+  deck: SpellDeck;
   /** Bumped whenever temporary walls change, so renderers know to redraw the terrain. */
   terrainVersion = 0;
 
@@ -168,12 +169,34 @@ export class CombatManager {
   /** Enemies that move one hex less during the current enemy phase. */
   private readonly slowed = new Set<string>();
 
-  constructor(room: RoomState, rng: Rng = Math.random, deck: SpellDeck = createEmptyDeck()) {
+  /**
+   * By default the fight starts straight away with `deck`. Pass 'LOADOUT' as
+   * `startPhase` to hold it until `startCombat()` supplies the deck.
+   */
+  constructor(
+    room: RoomState,
+    rng: Rng = Math.random,
+    deck: SpellDeck = createEmptyDeck(),
+    startPhase: 'LOADOUT' | 'PLAYER_TURN' = 'PLAYER_TURN',
+  ) {
     this.grid = room.grid;
     this.player = room.player;
     this.enemies = room.enemies;
     this.rng = rng;
     this.deck = deck;
+    this.phase = startPhase;
+    if (startPhase === 'PLAYER_TURN') this.beginFirstTurn();
+  }
+
+  /** Leaves the LOADOUT phase with the deck the player chose, and starts turn 1. */
+  startCombat(deck: SpellDeck): CombatEvent[] {
+    if (this.phase !== 'LOADOUT') return [];
+    this.deck = deck;
+    this.beginFirstTurn();
+    return this.enterPhase('PLAYER_TURN');
+  }
+
+  private beginFirstTurn(): void {
     startPlayerTurn(this.player);
     this.deck.drawHand(this.rng);
   }

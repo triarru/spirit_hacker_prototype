@@ -20,7 +20,15 @@ import type { Player } from '../core/entities/Player';
 import type { HexCoord } from '../core/hex/HexCoord';
 import type { HexGrid } from '../core/hex/HexGrid';
 import type { Program } from '../core/programs/Program';
-import { createStarterDeck } from '../core/programs/SpellDeck';
+import {
+  assignSlot,
+  buildDeck,
+  createEmptyDeck,
+  loadoutProblems,
+  starterSelection,
+  type LoadoutSelection,
+  type LoadoutSlot,
+} from '../core/programs/SpellDeck';
 import { describeEvents, type LogLine } from './combatLog';
 import { runReactivePrompt } from './reactiveLoop';
 
@@ -28,8 +36,9 @@ const ROOM_ID = 'prototype_room';
 /** The log keeps this many lines; older ones are dropped. */
 const LOG_LIMIT = 200;
 
+/** A fresh fight, waiting on the loadout screen for the player to choose a deck. */
 const newCombat = (): CombatManager =>
-  new CombatManager(loadRoom(ROOM_ID), Math.random, createStarterDeck());
+  new CombatManager(loadRoom(ROOM_ID), Math.random, createEmptyDeck(), 'LOADOUT');
 
 /** Display names by entity id, taken at the start so they outlive enemies that die. */
 const namesOf = (fight: CombatManager): Map<string, string> =>
@@ -66,8 +75,6 @@ const logFor = (events: CombatEvent[]): LogEntry[] =>
     }),
   );
 
-const openingLog = (): LogEntry[] => toEntries([{ tone: 'system', text: `— Turn ${combat.turn} —` }]);
-
 interface CombatSnapshot {
   grid: HexGrid;
   player: Player;
@@ -102,6 +109,12 @@ export interface CombatState extends CombatSnapshot {
   lastEvents: CombatEvent[];
   /** Everything that has happened this fight, oldest first. */
   log: LogEntry[];
+  /** The programs chosen on the loadout screen. Kept across restarts. */
+  loadout: LoadoutSelection;
+  /** Puts a program in a loadout slot (null empties it). Only on the loadout screen. */
+  setLoadoutSlot: (slot: LoadoutSlot, programId: string | null) => void;
+  /** Leaves the loadout screen and starts the fight with the chosen programs. */
+  startCombat: () => void;
   /** Walks the player to `hex` one step at a time. Does nothing if it is out of reach. */
   movePlayerTo: (hex: HexCoord) => Promise<void>;
   /** Basic attack. Does nothing if the enemy is out of range or the player cannot pay. */
@@ -114,7 +127,7 @@ export interface CombatState extends CombatSnapshot {
   hack: (hex: HexCoord, kind: HackKind) => void;
   /** Ends the player turn and plays out the enemy turn. */
   endTurn: () => Promise<void>;
-  /** Starts the fight over from the beginning. Only once it has ended. */
+  /** Goes back to the loadout screen for a new fight. Only once this one has ended. */
   restart: () => void;
 }
 
@@ -165,7 +178,19 @@ export const useCombatStore = create<CombatState>((set, get) => {
     busy: false,
     reactive: null,
     lastEvents: [],
-    log: openingLog(),
+    log: [],
+    loadout: starterSelection(),
+
+    setLoadoutSlot: (slot, programId) => {
+      if (get().phase !== 'LOADOUT') return;
+      set({ loadout: assignSlot(get().loadout, slot, programId) });
+    },
+
+    startCombat: () => {
+      const { loadout } = get();
+      if (loadoutProblems(loadout).length > 0) return;
+      publish(combat.startCombat(buildDeck(loadout)));
+    },
 
     movePlayerTo: async (hex) => {
       if (get().busy) return;
@@ -245,7 +270,7 @@ export const useCombatStore = create<CombatState>((set, get) => {
 
       combat = newCombat();
       names = namesOf(combat);
-      set({ ...snapshot(), reactive: null, lastEvents: [], log: openingLog() });
+      set({ ...snapshot(), reactive: null, lastEvents: [], log: [] });
     },
   };
 });

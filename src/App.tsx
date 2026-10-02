@@ -5,6 +5,7 @@ import { Controls } from './ui/Controls';
 import { EnemyInfo } from './ui/EnemyInfo';
 import { GameOverScreen } from './ui/GameOverScreen';
 import { HUD } from './ui/HUD';
+import { LoadoutScreen } from './ui/LoadoutScreen';
 import { SpellBar } from './ui/SpellBar';
 import { TurnIndicator } from './ui/TurnIndicator';
 
@@ -25,6 +26,7 @@ export function App() {
         <SpellBar />
         <ActionMenu />
         <GameOverScreen />
+        <LoadoutScreen />
       </div>
     </div>
   );

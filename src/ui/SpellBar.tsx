@@ -1,35 +1,10 @@
 import { useEffect } from 'react';
 import type { HandCard } from '../core/combat/CombatManager';
 import { HACK_RULES } from '../core/combat/EnvironmentHack';
-import type { ActiveSpec } from '../core/programs/Program';
 import { useCombatStore } from '../stores/useCombatStore';
 import { useUIStore } from '../stores/useUIStore';
 import { cssColor, TAG_COLOR } from '../theme';
-
-/** What the spell does, in a few words, read off the spec it will actually cast with. */
-function describeSpec(spec: ActiveSpec): string {
-  const parts: string[] = [];
-  if (spec.damage > 0) parts.push(`${spec.damage} dmg`);
-  for (const effect of spec.effects) {
-    if (effect.type === 'stun') parts.push(`stun ${effect.turns}t`);
-    if (effect.type === 'heal') parts.push(`heal ${effect.amount}`);
-    if (effect.type === 'createWall') parts.push(`${effect.count} walls, ${effect.turns}t`);
-  }
-  if (spec.aoe > 0) parts.push(`splash ${spec.aoe}`);
-  if (spec.firewallBonus > 0) parts.push(`FW +${spec.firewallBonus}`);
-
-  if (spec.targeting === 'SELF') parts.push('self');
-  else if (spec.range === null) parts.push(spec.targeting === 'ENEMY' ? 'any range' : 'any hex');
-  else parts.push(`${spec.targeting === 'LINE' ? 'line' : 'range'} ${spec.range}`);
-  return parts.join(' · ');
-}
-
-function describeCost(spec: ActiveSpec): string {
-  const costs = [`${spec.apCost} AP`];
-  if (spec.ramCost > 0) costs.push(`${spec.ramCost} RAM`);
-  if (spec.qiCost > 0) costs.push(`${spec.qiCost} Qi`);
-  return costs.join(' · ');
-}
+import { describeCost, describeSpec } from './programText';
 
 const HACK_HINT =
   `Hack: terminal → turret (${HACK_RULES.turret.ramCost} RAM) · ` +
@@ -80,7 +55,9 @@ function SpellCard({ card, hotkey, selected, disabled, onPick }: SpellCardProps)
 export function SpellBar() {
   const hand = useCombatStore((state) => state.hand);
   const canAct = useCombatStore((state) => state.phase === 'PLAYER_TURN' && !state.busy);
-  const combatOver = useCombatStore((state) => state.phase === 'VICTORY' || state.phase === 'DEFEAT');
+  const inFight = useCombatStore(
+    (state) => state.phase === 'PLAYER_TURN' || state.phase === 'ENEMY_TURN',
+  );
   const targetingSlot = useUIStore((state) => state.targetingSlot);
   const hackMode = useUIStore((state) => state.hackMode);
   const selectCard = useUIStore((state) => state.selectCard);
@@ -106,7 +83,7 @@ export function SpellBar() {
     return () => window.removeEventListener('keydown', onKeyDown);
   }, [cancelAction, selectCard, toggleHackMode]);
 
-  if (combatOver) return null;
+  if (!inFight) return null;
 
   return (
     <div className="spell-bar">

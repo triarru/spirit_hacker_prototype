@@ -648,3 +648,180 @@ body,
   line-height: 1.35;
   color: var(--gold);
 }
+
+.loadout {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(1060px, 96vw);
+  max-height: 94vh;
+  overflow-y: auto;
+  display: grid;
+  gap: 12px;
+  padding: 16px 18px;
+  background: rgba(10, 14, 22, 0.97);
+}
+
+.loadout header h2 {
+  margin-bottom: 4px;
+  font-size: 14px;
+  color: var(--cyan);
+}
+
+.loadout header p {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
+
+.loadout header strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.loadout-actives {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 10px;
+}
+
+.loadout-passives {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.loadout-slot {
+  padding: 9px 10px;
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--tag, var(--border));
+  border-radius: 6px;
+}
+
+.loadout-slot h3 {
+  margin: 0 0 4px;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.loadout-slot select {
+  width: 100%;
+  padding: 4px 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: #0f1622;
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+}
+
+.loadout-slot select:disabled {
+  opacity: 0.45;
+}
+
+.loadout-effect {
+  min-height: 34px;
+  margin: 5px 0 9px;
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-dim);
+}
+
+.loadout-slot .loadout-effect:last-child {
+  margin-bottom: 0;
+}
+
+.loadout-passives .loadout-effect {
+  min-height: 0;
+}
+
+.loadout-effect strong {
+  color: var(--text);
+  font-weight: 600;
+}
+
+.loadout-effect em {
+  font-style: normal;
+  color: var(--tag);
+}
+
+.loadout-effect span,
+.loadout-pool span {
+  color: var(--cyan);
+}
+
+.loadout-pool {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.loadout-pool th {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-align: left;
+  text-transform: uppercase;
+  color: var(--text-dim);
+}
+
+.loadout-pool td {
+  padding: 4px 8px;
+  border-bottom: 1px solid var(--border);
+  vertical-align: top;
+  color: var(--text-dim);
+}
+
+.loadout-pool td:last-child {
+  white-space: nowrap;
+  color: var(--text);
+}
+
+/* Pinned to the bottom of the panel, so Start is in view even when the panel has to scroll. */
+.loadout footer {
+  position: sticky;
+  bottom: -16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 0 -18px -16px;
+  padding: 10px 18px 14px;
+  border-top: 1px solid var(--border);
+  background: rgb(10, 14, 22);
+}
+
+.loadout-problem {
+  margin: 0;
+  font-size: 12px;
+  color: var(--gold);
+}
+
+.start-combat {
+  padding: 8px 26px;
+  border: 1px solid var(--cyan);
+  border-radius: 4px;
+  background: rgba(34, 211, 238, 0.12);
+  color: var(--cyan);
+  font: inherit;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+
+.start-combat:hover:not(:disabled) {
+  background: rgba(34, 211, 238, 0.24);
+}
+
+.start-combat:disabled {
+  border-color: var(--border);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: default;
+}
