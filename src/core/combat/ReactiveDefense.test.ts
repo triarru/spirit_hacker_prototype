@@ -54,46 +54,72 @@ describe('gradeParry', () => {
 describe('dodgeAnswer', () => {
   const player = at(3, 4);
 
-  it('points back at the shooter along the axis the shot mostly travels', () => {
-    expect(dodgeAnswer(at(3, 2), player)).toBe('up');
-    expect(dodgeAnswer(at(3, 6), player)).toBe('down');
-    expect(dodgeAnswer(at(1, 4), player)).toBe('left');
-    expect(dodgeAnswer(at(5, 4), player)).toBe('right');
+  it('is the opposite of where the shooter is: away from the shot', () => {
+    // Shooter above → dodge down; shooter to the left → dodge right; and so on.
+    expect(dodgeAnswer(at(3, 2), player)).toBe('down');
+    expect(dodgeAnswer(at(3, 6), player)).toBe('up');
+    expect(dodgeAnswer(at(1, 4), player)).toBe('right');
+    expect(dodgeAnswer(at(5, 4), player)).toBe('left');
   });
 
   it('resolves the diagonals a hex grid produces', () => {
     // An adjacent diagonal neighbor sits 30° off horizontal: mostly sideways.
-    expect(dodgeAnswer(at(2, 4), player)).toBe('left');
-    expect(dodgeAnswer(at(4, 5), player)).toBe('right');
+    expect(dodgeAnswer(at(2, 4), player)).toBe('right');
+    expect(dodgeAnswer(at(4, 5), player)).toBe('left');
     // Two hexes out at 60° off horizontal: mostly vertical.
-    expect(dodgeAnswer(at(2, 3), player)).toBe('up');
-    expect(dodgeAnswer(at(4, 6), player)).toBe('down');
+    expect(dodgeAnswer(at(2, 3), player)).toBe('down');
+    expect(dodgeAnswer(at(4, 6), player)).toBe('up');
   });
 });
 
 describe('dodgeDestination', () => {
-  it('goes straight up or down when asked', () => {
+  it('is the hex directly behind the defender, away from the shooter', () => {
     const { grid } = makeRoom({ player: at(3, 4) });
-    expect(dodgeDestination(grid, at(3, 4), 'up', at(3, 2))?.equals(at(3, 3))).toBe(true);
-    expect(dodgeDestination(grid, at(3, 4), 'down', at(3, 6))?.equals(at(3, 5))).toBe(true);
+    expect(dodgeDestination(grid, at(3, 4), at(3, 2))).toEqual(at(3, 5));
+    expect(dodgeDestination(grid, at(3, 4), at(3, 6))).toEqual(at(3, 3));
   });
 
-  it('picks the sideways neighbor nearer the shooter', () => {
+  it('follows the hex direction of the shot, not the screen axis of the key', () => {
     const { grid } = makeRoom({ player: at(3, 4) });
-    // The two left-hand neighbors of (3, 4) are (2, 4) and (2, 5).
-    expect(dodgeDestination(grid, at(3, 4), 'left', at(1, 3))?.equals(at(2, 4))).toBe(true);
-    expect(dodgeDestination(grid, at(3, 4), 'left', at(1, 6))?.equals(at(2, 5))).toBe(true);
+    // Shot from the upper left neighbor: the hex behind is the lower right one.
+    expect(dodgeDestination(grid, at(3, 4), at(2, 4))).toEqual(at(4, 5));
+    // The same line from two hexes out.
+    expect(dodgeDestination(grid, at(3, 4), at(1, 3))).toEqual(at(4, 5));
   });
 
-  it('falls back to the other neighbor on that side when the first is blocked', () => {
-    const { grid } = makeRoom({ player: at(3, 4), walls: [at(2, 4)] });
-    expect(dodgeDestination(grid, at(3, 4), 'left', at(1, 3))?.equals(at(2, 5))).toBe(true);
+  it('ends up one hex farther from the shooter', () => {
+    const { grid } = makeRoom({ player: at(3, 4) });
+    for (const shooter of at(3, 4).hexesInRange(2)) {
+      if (shooter.equals(at(3, 4))) continue;
+      const destination = dodgeDestination(grid, at(3, 4), shooter);
+      expect(destination?.distance(at(3, 4))).toBe(1);
+      expect(destination?.distance(shooter)).toBe(shooter.distance(at(3, 4)) + 1);
+    }
   });
 
-  it('returns null when that whole side is blocked or off the grid', () => {
-    const { grid } = makeRoom({ player: at(3, 4), walls: [at(3, 3), at(2, 4), at(4, 4)] });
-    expect(dodgeDestination(grid, at(3, 4), 'up', at(3, 2))).toBeNull();
-    expect(dodgeDestination(grid, at(0, 4), 'left', at(0, 2))).toBeNull();
+  it('is null when the hex behind is blocked: there is no falling back to another side', () => {
+    const { grid } = makeRoom({ player: at(3, 4), walls: [at(3, 5)] });
+    expect(dodgeDestination(grid, at(3, 4), at(3, 2))).toBeNull();
+  });
+
+  it('is null at the edge of the grid, or with an enemy standing behind', () => {
+    const { grid } = makeRoom({ player: at(3, 8), enemies: [['crawler', at(3, 5)]] });
+    expect(dodgeDestination(grid, at(3, 8), at(3, 6))).toBeNull();
+    expect(dodgeDestination(grid, at(3, 4), at(3, 3))).toBeNull();
+  });
+
+  it('when the shot runs between two hex directions, takes whichever of the two is free', () => {
+    // A shot along a row is exactly between the two hexes on the far side.
+    const open = makeRoom({ player: at(3, 4) });
+    const behind = [at(4, 4), at(4, 5)];
+    const chosen = dodgeDestination(open.grid, at(3, 4), at(1, 4));
+    expect(behind.some((hex) => chosen?.equals(hex))).toBe(true);
+
+    for (const [blocked, free] of [behind, [...behind].reverse()]) {
+      if (!blocked || !free) throw new Error('unreachable');
+      const { grid } = makeRoom({ player: at(3, 4), walls: [blocked] });
+      expect(dodgeDestination(grid, at(3, 4), at(1, 4))).toEqual(free);
+    }
   });
 });
 
@@ -136,15 +162,16 @@ describe('ReactiveDefense session', () => {
     if (!ghost) throw new Error('ghost missing');
     const prompt = createDefensePrompt(ghost, player);
     if (prompt?.kind !== 'dodge') throw new Error('expected a dodge prompt');
-    expect(prompt.answer).toBe('up');
+    // The ghost is above the player, so the way out is down.
+    expect(prompt.answer).toBe('down');
 
     const right = new ReactiveDefense(prompt);
-    right.handleInput({ kind: 'dodge', direction: 'up' }, 0.01);
-    expect(right.result).toEqual({ kind: 'dodge', grade: 'perfect', direction: 'up' });
+    right.handleInput({ kind: 'dodge', direction: 'down' }, 0.01);
+    expect(right.result).toEqual({ kind: 'dodge', grade: 'perfect', direction: 'down' });
 
     const wrong = new ReactiveDefense(prompt);
-    wrong.handleInput({ kind: 'dodge', direction: 'down' }, 0.4);
-    expect(wrong.result).toEqual({ kind: 'dodge', grade: 'miss', direction: 'down' });
+    wrong.handleInput({ kind: 'dodge', direction: 'up' }, 0.4);
+    expect(wrong.result).toEqual({ kind: 'dodge', grade: 'miss', direction: 'up' });
   });
 });
 
@@ -271,26 +298,33 @@ describe('enemy attacks resolved through CombatManager', () => {
     }
   });
 
-  it('perfect dodge: no damage and a free one-hex step toward the shooter', () => {
-    const { combat, events } = attackWith('ghost_process', at(3, 2), {
+  it('the dodge direction is opposite to where the enemy is', () => {
+    const { prompt } = attackWith('ghost_process', at(3, 2), null);
+    if (prompt?.kind !== 'dodge') throw new Error('expected a dodge prompt');
+    expect(prompt.answer).toBe('down');
+  });
+
+  it('perfect dodge: no damage and a free one-hex step away from the shooter', () => {
+    const { combat, enemy, events } = attackWith('ghost_process', at(3, 2), {
       kind: 'dodge',
       grade: 'perfect',
-      direction: 'up',
+      direction: 'down',
     });
 
     expect(combat.player.hp).toBe(combat.player.maxHp);
-    expect(combat.player.position.equals(at(3, 3))).toBe(true);
-    expect(combat.grid.getEntityAt(at(3, 3))).toBe(combat.player);
+    expect(combat.player.position.equals(at(3, 5))).toBe(true);
+    expect(combat.grid.getEntityAt(at(3, 5))).toBe(combat.player);
     expect(combat.grid.getEntityAt(at(3, 4))).toBeNull();
+    expect(combat.player.position.distance(enemy.position)).toBe(3);
     expect(events.map((event) => event.type)).toEqual(['defended', 'moved']);
   });
 
-  it('perfect dodge with nowhere to go still avoids the damage', () => {
+  it('blocked hex behind: the dodge still succeeds, with no teleport', () => {
     const { combat, events } = attackWith(
       'ghost_process',
       at(3, 2),
-      { kind: 'dodge', grade: 'perfect', direction: 'up' },
-      [at(3, 3), at(2, 4), at(4, 4)],
+      { kind: 'dodge', grade: 'perfect', direction: 'down' },
+      [at(3, 5)],
     );
 
     expect(combat.player.hp).toBe(combat.player.maxHp);
@@ -302,7 +336,7 @@ describe('enemy attacks resolved through CombatManager', () => {
     const { combat, enemy } = attackWith('ghost_process', at(3, 2), {
       kind: 'dodge',
       grade: 'miss',
-      direction: 'down',
+      direction: 'up',
     });
 
     expect(combat.player.hp).toBe(combat.player.maxHp - enemy.attackDamage);

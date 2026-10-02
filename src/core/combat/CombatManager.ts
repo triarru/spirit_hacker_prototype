@@ -540,10 +540,11 @@ export class CombatManager {
     const damage = Math.round(enemy.attackDamage * effects.damageMultiplier);
     if (damage > 0) events.push(...this.hitPlayer(enemy.id, damage));
 
-    if (defense?.direction) {
+    if (defense?.kind === 'dodge') {
+      // Only a perfect dodge has any hops to make. Each one goes straight away from the shooter.
       for (let hop = 0; hop < effects.teleportHexes; hop++) {
         const from = this.player.position;
-        const to = dodgeDestination(this.grid, from, defense.direction, enemy.position);
+        const to = dodgeDestination(this.grid, from, enemy.position);
         if (!to) break;
         this.grid.moveEntity(this.player, to);
         events.push({ type: 'moved', entityId: this.player.id, from, to });

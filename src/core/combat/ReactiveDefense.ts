@@ -20,7 +20,7 @@ export interface ParryPrompt {
   goodToleranceSeconds: number;
 }
 
-/** Ranged attack: press the direction opposite to the projectile's travel. */
+/** Ranged attack: press the direction that takes the defender away from the shooter. */
 export interface DodgePrompt {
   kind: 'dodge';
   attackerId: string;
@@ -28,7 +28,7 @@ export interface DodgePrompt {
   /** The projectile flies from `from` to `to`. */
   from: HexCoord;
   to: HexCoord;
-  /** The direction that dodges it. */
+  /** The direction that dodges it: away from the shooter. */
   answer: Direction;
 }
 
@@ -95,20 +95,22 @@ export function gradeParry(prompt: ParryPrompt, atSeconds: number): DefenseGrade
 }
 
 /**
- * The direction that dodges a projectile flying from `from` to `to`: straight
- * back at it, snapped to whichever screen axis the shot mostly travels along.
+ * The key that dodges a projectile flying from `from` to `to`: away from the
+ * shooter, which is the way the shot is already travelling, snapped to
+ * whichever screen axis that mostly is.
  */
 export function dodgeAnswer(from: HexCoord, to: HexCoord): Direction {
   const source = hexToPixel(from);
   const target = hexToPixel(to);
-  const dx = source.x - target.x;
-  const dy = source.y - target.y;
+  const dx = target.x - source.x;
+  const dy = target.y - source.y;
   if (Math.abs(dx) >= Math.abs(dy)) return dx < 0 ? 'left' : 'right';
   // Screen y grows downward.
   return dy < 0 ? 'up' : 'down';
 }
 
-const DIRECTION_VECTORS: Record<Direction, readonly [number, number]> = {
+/** Each direction as a screen-space unit vector (y grows downward). */
+export const DIRECTION_VECTORS: Record<Direction, readonly [number, number]> = {
   up: [0, -1],
   down: [0, 1],
   left: [-1, 0],
@@ -116,35 +118,34 @@ const DIRECTION_VECTORS: Record<Direction, readonly [number, number]> = {
 };
 
 /**
- * Where a perfect dodge carries the player: the free neighbor that lies most
- * in `direction`. A flat-top hex has no neighbor straight left or right, so
- * the two diagonals on that side tie; the one nearer `toward` wins. Null when
- * every hex on that side is blocked.
+ * Where a perfect dodge carries the defender: the neighboring hex directly
+ * away from the shooter. Of the six neighbors that is the one most in line
+ * with shooter → defender; when the shot runs exactly between two hex
+ * directions those two tie, and the first free one is taken.
+ *
+ * Null when the hex behind is blocked (wall, enemy, edge of the grid). The
+ * dodge still works in that case; the defender just stays where they are.
  */
-export function dodgeDestination(
-  grid: HexGrid,
-  from: HexCoord,
-  direction: Direction,
-  toward: HexCoord,
-): HexCoord | null {
+export function dodgeDestination(grid: HexGrid, from: HexCoord, shooter: HexCoord): HexCoord | null {
   const origin = hexToPixel(from);
-  const [dirX, dirY] = DIRECTION_VECTORS[direction];
+  const source = hexToPixel(shooter);
+  const awayX = origin.x - source.x;
+  const awayY = origin.y - source.y;
+  const TOLERANCE = 1e-6;
 
-  let best: { hex: HexCoord; alignment: number } | null = null;
+  let bestAlignment = -Infinity;
+  let behind: HexCoord[] = [];
   for (const hex of from.neighbors()) {
-    if (grid.isBlocked(hex)) continue;
     const center = hexToPixel(hex);
-    const alignment = (center.x - origin.x) * dirX + (center.y - origin.y) * dirY;
-    if (alignment <= 0) continue;
-
-    const better =
-      !best ||
-      alignment > best.alignment + 1e-6 ||
-      (Math.abs(alignment - best.alignment) <= 1e-6 &&
-        hex.distance(toward) < best.hex.distance(toward));
-    if (better) best = { hex, alignment };
+    const alignment = (center.x - origin.x) * awayX + (center.y - origin.y) * awayY;
+    if (alignment > bestAlignment + TOLERANCE) {
+      bestAlignment = alignment;
+      behind = [hex];
+    } else if (Math.abs(alignment - bestAlignment) <= TOLERANCE) {
+      behind.push(hex);
+    }
   }
-  return best?.hex ?? null;
+  return behind.find((hex) => !grid.isBlocked(hex)) ?? null;
 }
 
 /** `null` means the attack was not defended at all. */

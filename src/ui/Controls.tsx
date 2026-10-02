@@ -4,7 +4,7 @@ const CONTROLS: Array<[keys: string, action: string]> = [
   ['1 2 3', 'pick a program, then click a hex'],
   ['H', 'hack a terminal, floor or wall'],
   ['Space / Click', 'parry when the rings meet'],
-  ['Arrows / WASD', 'dodge against the shot'],
+  ['Arrows / WASD', 'dodge the way the arrow points'],
   ['Scroll', 'zoom'],
 ];
 
