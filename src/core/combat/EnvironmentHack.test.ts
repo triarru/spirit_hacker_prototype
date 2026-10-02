@@ -254,58 +254,76 @@ describe('trap', () => {
     const events = passTurn(combat);
     expect(crawler.position.equals(at(0, 2))).toBe(true);
     expect(events.filter((event) => event.type === 'moved')).toHaveLength(2);
-    expect(combat.isTurnOver(crawler.id)).toBe(true);
   });
 
-  it('interrupts the attack: an enemy that steps onto a trap next to the player does not strike', () => {
+  it('does not cancel the attack: an enemy stopped on a trap next to the player still strikes', () => {
     const { combat, grid, crawler } = corridor();
     combat.hack(at(0, 4), 'TRAP');
     grid.moveEntity(crawler, at(0, 3));
 
-    // Its plan was "step to (0, 4), then attack". The trap cancels the attack.
+    // Its plan was "step to (0, 4), then attack". The trap goes off, and the attack still comes.
     const events = passTurn(combat);
     expect(crawler.position.equals(at(0, 4))).toBe(true);
     expect(events.filter((event) => event.type === 'attacked')).toEqual([
       expect.objectContaining({ attackerId: TRAP_ID, targetId: crawler.id }),
+      expect.objectContaining({ attackerId: crawler.id, targetId: combat.player.id }),
     ]);
+    expect(combat.player.hp).toBe(combat.player.maxHp - crawler.attackDamage);
+  });
+
+  it('costs the enemy its attack when it stops it short of the player', () => {
+    const { combat, grid, crawler } = corridor();
+    crawler.moveRange = 2;
+    grid.moveEntity(crawler, at(0, 2));
+    combat.hack(at(0, 3), 'TRAP');
+
+    // Its plan was "step to (0, 3), step to (0, 4), attack". It never gets past (0, 3).
+    const events = passTurn(combat);
+    expect(crawler.position.equals(at(0, 3))).toBe(true);
+    expect(events.filter((event) => event.type === 'attacked' && event.targetId === combat.player.id)).toEqual([]);
     expect(combat.player.hp).toBe(combat.player.maxHp);
   });
 
-  it('offers no reaction prompt for the attack the trap cancelled', () => {
-    /** The crawler steps next to the player; returns whether its attack then gets a prompt. */
-    const promptAfterStep = (withTrap: boolean) => {
+  it('offers the reaction prompt only for an attack that is still coming', () => {
+    /** Plays the crawler's moves, then returns what its planned attack looks like to the caller. */
+    const attackAfterMoves = (trapAt: ReturnType<typeof at>, crawlerAt: ReturnType<typeof at>) => {
       const { combat, grid, crawler } = corridor();
-      if (withTrap) combat.hack(at(0, 4), 'TRAP');
-      grid.moveEntity(crawler, at(0, 3));
+      crawler.moveRange = 2;
+      grid.moveEntity(crawler, crawlerAt);
+      combat.hack(trapAt, 'TRAP');
       combat.player.ap = 0;
       combat.endPlayerTurn();
       combat.startEnemyTurn(crawler.id);
 
-      const [move, attack] = combat.planEnemyTurn(crawler.id);
-      if (move?.type !== 'move' || attack?.type !== 'attack') throw new Error('expected move then attack');
-      combat.applyEnemyAction(crawler.id, move);
-      return { prompt: combat.getDefensePrompt(crawler.id, attack), attackEvents: combat.applyEnemyAction(crawler.id, attack) };
+      const plan = combat.planEnemyTurn(crawler.id);
+      const attack = plan.at(-1);
+      if (attack?.type !== 'attack') throw new Error('expected the plan to end in an attack');
+      const skipped = plan.slice(0, -1).filter((move) => {
+        const cancelled = combat.isCancelled(crawler.id, move);
+        if (!cancelled) combat.applyEnemyAction(crawler.id, move);
+        return cancelled;
+      });
+      return {
+        skippedMoves: skipped.length,
+        cancelled: combat.isCancelled(crawler.id, attack),
+        prompt: combat.getDefensePrompt(crawler.id, attack),
+      };
     };
 
-    const normal = promptAfterStep(false);
-    expect(normal.prompt?.kind).toBe('parry');
-    expect(normal.attackEvents.length).toBeGreaterThan(0);
-
-    const trapped = promptAfterStep(true);
-    expect(trapped.prompt).toBeNull();
-    expect(trapped.attackEvents).toEqual([]);
+    // Trap next to the player: stopped there, still in reach.
+    expect(attackAfterMoves(at(0, 4), at(0, 3))).toMatchObject({ cancelled: false, prompt: { kind: 'parry' } });
+    // Trap one hex further out: its second step is off, and so is the attack.
+    expect(attackAfterMoves(at(0, 3), at(0, 2))).toEqual({ skippedMoves: 1, cancelled: true, prompt: null });
   });
 
-  it('only costs the enemy that one turn: slowed but adjacent, it attacks on the next', () => {
+  it('slows it afterwards, which does not stop an attack from where it stands', () => {
     const { combat, grid, crawler } = corridor();
     combat.hack(at(0, 4), 'TRAP');
     grid.moveEntity(crawler, at(0, 3));
 
     passTurn(combat);
-    expect(combat.player.hp).toBe(combat.player.maxHp);
-
     passTurn(combat);
-    expect(combat.player.hp).toBe(combat.player.maxHp - crawler.attackDamage);
+    expect(combat.player.hp).toBe(combat.player.maxHp - 2 * crawler.attackDamage);
   });
 
   it('trap + breach: the enemy is stunned for the next turn, once, then acts again', () => {

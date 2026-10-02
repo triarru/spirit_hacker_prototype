@@ -179,7 +179,7 @@ export class CombatManager {
   private readonly skipping = new Set<string>();
   /** Enemies that move one hex less during the current enemy phase. */
   private readonly slowed = new Set<string>();
-  /** Enemies whose turn was cut short during the current enemy phase (a trap went off under them). */
+  /** Enemies that can move no further during the current enemy phase (a trap went off under them). */
   private readonly interrupted = new Set<string>();
 
   /**
@@ -488,8 +488,7 @@ export class CombatManager {
   getDefensePrompt(enemyId: string, action: EnemyAction): DefensePrompt | null {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN' || action.type !== 'attack') return null;
-    if (this.interrupted.has(enemyId)) return null;
-    if (!canHitFrom(this.grid, enemy, enemy.position, this.player.position)) return null;
+    if (!this.canStrike(enemy)) return null;
     return createDefensePrompt(enemy, this.player);
   }
 
@@ -504,10 +503,10 @@ export class CombatManager {
   ): CombatEvent[] {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN') return [];
-    // Whatever else it had planned is off: its turn ended where the trap caught it.
-    if (this.interrupted.has(enemyId)) return [];
 
     if (action.type === 'move') {
+      // A trap held it where it stands: the rest of its movement is off.
+      if (this.interrupted.has(enemyId)) return [];
       const from = enemy.position;
       if (from.distance(action.to) !== 1 || this.grid.isBlocked(action.to)) return [];
       this.grid.moveEntity(enemy, action.to);
@@ -518,7 +517,7 @@ export class CombatManager {
       ];
     }
 
-    if (!canHitFrom(this.grid, enemy, enemy.position, this.player.position)) return [];
+    if (!this.canStrike(enemy)) return [];
     const events = this.enemyAttack(enemy, defense);
     // It came for the player and got its strike in: it settles back into its guard where it stands.
     if (enemy.aggressive && enemy.aggro) {
@@ -531,11 +530,14 @@ export class CombatManager {
   }
 
   /**
-   * Whether the enemy has nothing left to do this turn: it is gone, or a trap
-   * interrupted it. Lets the caller stop stepping through a plan that no longer applies.
+   * Whether a planned action will no longer happen: the enemy is gone, a trap
+   * stopped its movement, or its attack no longer has the player in reach.
+   * Lets the caller skip it without pausing for it.
    */
-  isTurnOver(enemyId: string): boolean {
-    return !this.findEnemy(enemyId) || this.interrupted.has(enemyId);
+  isCancelled(enemyId: string, action: EnemyAction): boolean {
+    const enemy = this.findEnemy(enemyId);
+    if (!enemy) return true;
+    return action.type === 'move' ? this.interrupted.has(enemyId) : !this.canStrike(enemy);
   }
 
   /** Hands the turn back to the player, unless combat already ended. */
@@ -606,8 +608,9 @@ export class CombatManager {
 
   /**
    * If the enemy just stepped onto a trap, sets it off. The trap also stops
-   * the enemy in its tracks: no more movement and no attack this turn. A trap
-   * works once.
+   * the enemy in its tracks: no more movement this turn. It can still strike
+   * from where it was stopped, if the player is within its reach there. A
+   * trap works once.
    */
   private springTrap(enemy: Enemy): CombatEvent[] {
     const cell = this.grid.getCell(enemy.position);
@@ -629,6 +632,14 @@ export class CombatManager {
       });
     }
     return [...events, ...this.terrainChanged()];
+  }
+
+  /**
+   * Whether the enemy can attack the player from where it stands right now. One
+   * whose firewall went down in the middle of its own turn (a trap) cannot.
+   */
+  private canStrike(enemy: Enemy): boolean {
+    return !enemy.breached && canHitFrom(this.grid, enemy, enemy.position, this.player.position);
   }
 
   // --- Shared --------------------------------------------------------------

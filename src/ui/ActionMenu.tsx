@@ -5,7 +5,7 @@ const { turret, trap, wall } = HACK_RULES;
 
 const HACKS: Record<HackKind, { title: string; detail: string }> = {
   TURRET: { title: 'Deploy turret', detail: `${turret.damage} dmg a turn, ${turret.turns} turns` },
-  TRAP: { title: 'Set trap', detail: `${trap.damage} dmg + slow, once` },
+  TRAP: { title: 'Set trap', detail: `${trap.damage} dmg, stops movement, slow · once` },
   WALL: { title: 'Raise wall', detail: `blocks for ${wall.turns} turns` },
   BREAK_WALL: { title: 'Break wall', detail: 'opens it for good' },
 };
