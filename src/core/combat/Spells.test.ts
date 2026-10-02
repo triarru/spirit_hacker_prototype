@@ -124,6 +124,7 @@ describe('casting', () => {
     const { combat, enemies } = setup({ enemies: [['ghost_process', at(3, 3)]], deck: deckOf([['brute_force']]) });
     const [ghost] = enemies;
     if (!ghost) throw new Error('ghost missing');
+    ghost.hp = getProgram('brute_force').active.damage;
 
     expect(types(combat.castSpell(0, ghost.position))).toEqual(['spellCast', 'attacked', 'died', 'phaseChanged']);
     expect(combat.phase).toBe('VICTORY');
@@ -336,7 +337,7 @@ describe('modifiers in combat', () => {
     const modified = setup({ enemies: [['guardian', at(3, 2)]], deck: deckOf([['brute_force', 'nmap_scan']]) });
     expect(modified.combat.getSpellTargets(0)).toEqual([at(3, 2)]);
     modified.combat.castSpell(0, at(3, 2));
-    expect(modified.enemies[0]?.hp).toBe(50 - 20);
+    expect(modified.enemies[0]?.hp).toBe((modified.enemies[0]?.maxHp ?? 0) - 20);
   });
 
   it('brute_force under tran_yem: the stun also hurts', () => {
@@ -345,7 +346,7 @@ describe('modifiers in combat', () => {
       deck: deckOf([['tran_yem', 'brute_force']]),
     });
     expect(types(combat.castSpell(0, at(3, 3)))).toEqual(['spellCast', 'attacked', 'stunned']);
-    expect(enemies[0]?.hp).toBe(50 - 8);
+    expect(enemies[0]?.hp).toBe((enemies[0]?.maxHp ?? 0) - 8);
   });
 
   it('ping_flood under brute_force: splashes onto enemies next to the target', () => {
@@ -387,7 +388,7 @@ describe('passives in combat', () => {
   it('brute_force: basic attack +5', () => {
     const { combat, enemies } = setup({ enemies: [['guardian', at(3, 3)]], deck: deckOf([], ['brute_force']) });
     combat.playerAttack(enemies[0]?.id ?? '');
-    expect(enemies[0]?.hp).toBe(50 - 15);
+    expect(enemies[0]?.hp).toBe((enemies[0]?.maxHp ?? 0) - 15);
   });
 
   it('firewall_up: every hit taken is 2 weaker', () => {

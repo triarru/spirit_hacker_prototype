@@ -1,7 +1,7 @@
 {
   "crawler": {
     "name": "Crawler",
-    "maxHp": 30,
+    "maxHp": 60,
     "speed": 4,
     "firewall": 3,
     "weakness": "SHOCK",
@@ -16,7 +16,7 @@
   },
   "guardian": {
     "name": "Guardian",
-    "maxHp": 50,
+    "maxHp": 100,
     "speed": 2,
     "firewall": 4,
     "weakness": "CORRUPT",
@@ -34,7 +34,7 @@
   },
   "ghost_process": {
     "name": "Ghost Process",
-    "maxHp": 20,
+    "maxHp": 40,
     "speed": 6,
     "firewall": 2,
     "weakness": "PURE",
