@@ -1,6 +1,8 @@
 import enemiesJson from '../data/enemies.json';
 import { parseOneOf } from '../data/parse';
+import { hasLineOfSight } from '../hex/hasLineOfSight';
 import type { HexCoord } from '../hex/HexCoord';
+import type { HexGrid } from '../hex/HexGrid';
 import { SPELL_TAGS, type SpellTag } from '../programs/Program';
 import type { Entity } from './Entity';
 
@@ -76,7 +78,17 @@ export function createEnemy(typeId: string, id: string, position: HexCoord): Ene
   };
 }
 
-/** Whether the enemy could hit `target` if it stood on `from`. */
+/** Whether `target` is within the enemy's reach from `from`. Says nothing about what is in between. */
 export function inAttackRange(enemy: Enemy, from: HexCoord, target: HexCoord): boolean {
   return from.distance(target) <= enemy.attackRange;
+}
+
+/**
+ * Whether the enemy could actually hit `target` if it stood on `from`: in
+ * range, and for a ranged attack, with nothing solid in the way. A projectile
+ * is a physical thing, so walls stop it.
+ */
+export function canHitFrom(grid: HexGrid, enemy: Enemy, from: HexCoord, target: HexCoord): boolean {
+  if (!inAttackRange(enemy, from, target)) return false;
+  return enemy.attackType !== 'ranged' || hasLineOfSight(grid, from, target);
 }

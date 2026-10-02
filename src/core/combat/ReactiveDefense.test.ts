@@ -191,12 +191,12 @@ describe('enemy attacks resolved through CombatManager', () => {
     enemyType: string,
     enemyAt: ReturnType<typeof at>,
     defense: DefenseResult | null,
-    walls: Array<ReturnType<typeof at>> = [],
+    /** Hexes the player cannot step onto. Terminals: they block movement but not a shot. */
+    blocked: Array<ReturnType<typeof at>> = [],
   ) {
-    const combat = new CombatManager(
-      makeRoom({ player: at(3, 4), enemies: [[enemyType, enemyAt]], walls }),
-      NEVER_DODGE,
-    );
+    const room = makeRoom({ player: at(3, 4), enemies: [[enemyType, enemyAt]] });
+    for (const hex of blocked) room.grid.setTerrain(hex, 'TERMINAL');
+    const combat = new CombatManager(room, NEVER_DODGE);
     const [enemy] = combat.enemies;
     if (!enemy) throw new Error('enemy missing');
     combat.player.ap = 0;

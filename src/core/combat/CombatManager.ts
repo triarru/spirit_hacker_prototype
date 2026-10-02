@@ -1,6 +1,6 @@
 import { planEnemyTurn, type EnemyAction } from '../ai/EnemyAI';
 import type { RoomState } from '../data/RoomLoader';
-import { inAttackRange, type Enemy } from '../entities/Enemy';
+import { canHitFrom, type Enemy } from '../entities/Enemy';
 import { PLAYER_DATA, type Player } from '../entities/Player';
 import type { HexCoord } from '../hex/HexCoord';
 import type { HexGrid } from '../hex/HexGrid';
@@ -456,7 +456,7 @@ export class CombatManager {
   getDefensePrompt(enemyId: string, action: EnemyAction): DefensePrompt | null {
     const enemy = this.findEnemy(enemyId);
     if (!enemy || this.phase !== 'ENEMY_TURN' || action.type !== 'attack') return null;
-    if (!inAttackRange(enemy, enemy.position, this.player.position)) return null;
+    if (!canHitFrom(this.grid, enemy, enemy.position, this.player.position)) return null;
     return createDefensePrompt(enemy, this.player);
   }
 
@@ -483,7 +483,7 @@ export class CombatManager {
       ];
     }
 
-    if (!inAttackRange(enemy, enemy.position, this.player.position)) return [];
+    if (!canHitFrom(this.grid, enemy, enemy.position, this.player.position)) return [];
     return [...this.enemyAttack(enemy, defense), ...this.checkEnd()];
   }
 

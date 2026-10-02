@@ -1,4 +1,4 @@
-import { inAttackRange } from '../entities/Enemy';
+import { canHitFrom } from '../entities/Enemy';
 import type { HexCoord } from '../hex/HexCoord';
 import type { HexGrid } from '../hex/HexGrid';
 import { findPath } from '../hex/HexPathfinding';
@@ -22,16 +22,16 @@ export const patrolBehavior: Behavior = (enemy, { grid, player }) => {
   const actions: EnemyAction[] = [];
   let position = enemy.position;
 
-  if (!inAttackRange(enemy, position, player.position)) {
+  if (!canHitFrom(grid, enemy, position, player.position)) {
     const path = pathToward(grid, position, player.position);
     for (const step of path.slice(1, 1 + enemy.moveRange)) {
       actions.push({ type: 'move', to: step });
       position = step;
-      if (inAttackRange(enemy, position, player.position)) break;
+      if (canHitFrom(grid, enemy, position, player.position)) break;
     }
   }
 
-  if (inAttackRange(enemy, position, player.position)) {
+  if (canHitFrom(grid, enemy, position, player.position)) {
     actions.push({ type: 'attack', targetId: player.id });
   }
   return actions;

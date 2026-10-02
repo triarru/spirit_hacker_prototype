@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { at, makeRoom } from '../combat/testRoom';
+import { CombatManager } from '../combat/CombatManager';
+import { at, makeRoom, runEnemyPhase, seededRng } from '../combat/testRoom';
 import type { RoomState } from '../data/RoomLoader';
-import type { Enemy } from '../entities/Enemy';
+import { canHitFrom, type Enemy } from '../entities/Enemy';
+import { hasLineOfSight } from '../hex/hasLineOfSight';
+import type { HexCoord } from '../hex/HexCoord';
+import { getProgram } from '../programs/ProgramRegistry';
+import { SpellDeck } from '../programs/SpellDeck';
 import { planEnemyTurn, type EnemyAction } from './EnemyAI';
 
 /** Plans the turn of the room's only enemy. `roll` is what every rng() call returns. */
@@ -119,5 +124,100 @@ describe('random behavior (Ghost Process)', () => {
     expect(plans).toContainEqual([{ type: 'move', to: at(0, 2) }, attack]);
     // Drifting to (0, 0) leaves it four hexes away: out of range.
     expect(plans).toContainEqual([{ type: 'move', to: at(0, 0) }]);
+  });
+});
+
+describe('Ghost Process and line of sight', () => {
+  /** Where the enemy ends up after carrying out a plan. */
+  const endOf = (enemy: Enemy, actions: EnemyAction[]): HexCoord =>
+    actions.reduce((position, action) => (action.type === 'move' ? action.to : position), enemy.position);
+  const moves = (actions: EnemyAction[]): number => actions.filter((action) => action.type === 'move').length;
+  const fires = (actions: EnemyAction[]): boolean => actions.some((action) => action.type === 'attack');
+  const ROLLS = [0, 0.2, 0.4, 0.6, 0.8, 0.999];
+
+  it('fires as before when nothing is in the way', () => {
+    const room = makeRoom({ cols: 1, rows: 5, player: at(0, 4), enemies: [['ghost_process', at(0, 1)]] });
+    const plans = ROLLS.map((roll) => plan(room, roll).actions);
+    expect(plans).toContainEqual([{ type: 'move', to: at(0, 2) }, attack]);
+  });
+
+  it('does not fire through a wall', () => {
+    // The player is walled in on all six sides: no hex within range has a clear line.
+    const player = at(3, 4);
+    const room = makeRoom({ player, enemies: [['ghost_process', at(3, 2)]], walls: player.neighbors() });
+
+    for (const roll of ROLLS) {
+      const { enemy, actions } = plan(room, roll);
+      expect(fires(actions)).toBe(false);
+      expect(hasLineOfSight(room.grid, endOf(enemy, actions), player)).toBe(false);
+    }
+  });
+
+  it('takes one more step to look for a clear shot when its sight is blocked', () => {
+    // One wall, directly between the ghost's column and the player.
+    const player = at(3, 6);
+    const room = makeRoom({ player, enemies: [['ghost_process', at(3, 3)]], walls: [at(3, 5)] });
+    let repositioned = 0;
+
+    for (const roll of ROLLS) {
+      const { enemy, actions } = plan(room, roll);
+      const end = endOf(enemy, actions);
+      // It only attacks from a hex it can really hit from.
+      expect(fires(actions)).toBe(canHitFrom(room.grid, enemy, end, player));
+      // A second move only ever happens to get out from behind the wall.
+      if (moves(actions) === 2) {
+        repositioned += 1;
+        const first = actions[0];
+        if (first?.type !== 'move') throw new Error('expected a move');
+        expect(first.to.distance(player)).toBeLessThanOrEqual(enemy.attackRange);
+        expect(hasLineOfSight(room.grid, first.to, player)).toBe(false);
+        // A clear hex was next to it, so that is where it went, and it fires.
+        expect(fires(actions)).toBe(true);
+      }
+    }
+    expect(repositioned).toBeGreaterThan(0);
+  });
+
+  it('does not reposition when it is simply out of range', () => {
+    const room = makeRoom({ player: at(3, 8), enemies: [['ghost_process', at(3, 1)]], walls: [at(3, 5)] });
+    for (const roll of ROLLS) expect(moves(plan(room, roll).actions)).toBe(1);
+  });
+
+  it('cannot reposition on a turn it cannot move at all', () => {
+    const player = at(3, 6);
+    const room = makeRoom({ player, enemies: [['ghost_process', at(3, 4)]], walls: [at(3, 5)] });
+    const [ghost] = room.enemies;
+    if (!ghost) throw new Error('ghost missing');
+    ghost.moveRange = 0;
+
+    expect(plan(room, 0).actions).toEqual([]);
+  });
+
+  it('is shut out by a wall the player raises between them', () => {
+    const combat = new CombatManager(
+      makeRoom({ cols: 1, rows: 5, player: at(0, 4), enemies: [['ghost_process', at(0, 1)]] }),
+      seededRng(2),
+      new SpellDeck({ actives: [{ program: getProgram('firewall_up'), modifier: null }], passives: [], handSize: 1 }),
+    );
+    // In a 1-wide corridor the wall is a single hex, and it seals the ghost off.
+    combat.castSpell(0, at(0, 3));
+    combat.player.ap = 0;
+
+    for (let turn = 0; turn < 3; turn++) {
+      combat.endPlayerTurn();
+      const events = runEnemyPhase(combat);
+      expect(events.some((event) => event.type === 'attacked')).toBe(false);
+    }
+    expect(combat.player.hp).toBe(combat.player.maxHp);
+  });
+
+  it('does not stop the player casting at an enemy through a wall', () => {
+    const combat = new CombatManager(
+      makeRoom({ player: at(3, 6), enemies: [['ghost_process', at(3, 4)]], walls: [at(3, 5)] }),
+      seededRng(2),
+      new SpellDeck({ actives: [{ program: getProgram('tran_yem'), modifier: null }], passives: [], handSize: 1 }),
+    );
+    expect(combat.getSpellTargets(0)).toEqual([at(3, 4)]);
+    expect(combat.castSpell(0, at(3, 4)).map((event) => event.type)).toContain('stunned');
   });
 });

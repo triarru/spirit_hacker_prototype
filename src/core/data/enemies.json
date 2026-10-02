@@ -42,6 +42,6 @@
       "damage": 8,
       "range": 2
     },
-    "hint": "Drifts at random, and fires whenever you are within 2 hexes."
+    "hint": "Drifts at random, and fires when you are within 2 hexes and in its line of sight. Walls block its shots."
   }
 }
